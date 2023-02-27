@@ -1,0 +1,78 @@
+syntax = "proto3";
+package node;
+option go_package = "github.com/dungtt-astra/paymentchannel";
+
+import "google/protobuf/struct.proto";
+
+enum ConnectionStatus {
+  OPEN = 0;
+  CLOSE = 1;
+}
+
+enum RegisterStatus {
+  ACCEPTED = 0;
+  PENDING = 1;
+  REJECTED = 2;
+}
+
+enum MsgType {
+  ERROR = 0;
+  CONFIRM_OPENCHANNEL = 1;
+  RESPONSEDATA = 2;
+}
+
+service Node {
+  rpc RequestOpenChannel(MsgReqOpenChannel) returns (MsgResOpenChannel) {};
+  rpc ConfirmOpenChannel(Msg) returns(Msg) {};
+//  rpc Register(MsgRegisterRequest) returns (MsgRegisterResponse) {};
+  rpc OpenStream(stream Msg) returns (stream Msg) {};
+}
+
+message Msg {
+  MsgType Type = 1;
+  bytes Data = 2;
+}
+
+message MsgRequest {
+  string cmd = 1;
+  google.protobuf.Struct data = 2;
+}
+
+message MsgResponse {
+  uint32 code = 1;
+  google.protobuf.Struct data = 2;
+}
+
+message MsgReqOpenChannel {
+  string Version = 1;
+  string PartA_Addr = 2;
+  string PartB_Addr = 3;
+  string PubkeyA = 4;
+  uint64 Deposit_Amt = 5;
+  string Denom = 6;
+  string Hashcode = 7;
+  string peerNodeAddr = 8; // IP:port
+  uint64 FirstSend = 9;
+  uint64 FirstRecv = 10;
+}
+
+message MsgResOpenChannel {
+  string Pubkey = 1;
+  uint64 Deposit_Amt = 2;
+  string Denom = 3;
+  string Hashcode = 4;
+  string Commitment_Sig = 5;
+}
+
+//message MsgRegisterRequest {
+//  string ClientName = 1;
+//  bytes OptionalData = 2;
+//}
+//
+//message MsgRegisterResponse {
+//  RegisterStatus Status = 1;
+//  bytes OptionalData = 2;
+//}
+
+
+
