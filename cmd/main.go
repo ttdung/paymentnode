@@ -2,39 +2,37 @@ package main
 
 //
 //
-//import (
-//	"fmt"
-//	"log"
-//	"os"
-//	"os/signal"
-//	"strings"
-//	"syscall"
-//
-//	"github.com/dimaskiddo/codebase-go-rest/pkg/cache"
-//	"github.com/dimaskiddo/codebase-go-rest/pkg/db"
-//	"github.com/dimaskiddo/codebase-go-rest/pkg/router"
-//	"github.com/dimaskiddo/codebase-go-rest/pkg/server"
-//
-//	"github.com/dimaskiddo/codebase-go-rest/internal"
-//)
-//
-//// Server Variable
-//var svr *server.Server
-//
-//// Init Function
-//func init() {
-//	// Set Go Log Flags
-//	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
-//
-//	// Load Routes
-//	internal.LoadRoutes()
-//
-//	// Initialize Server
-//	svr = server.NewServer(router.Router)
-//}
-//
-//// Main Function
-//func main() {
-//	// Starting Server
-//	svr.Start()
-//}
+import (
+	"github.com/dungtt-astra/paymentnode/config"
+	node "github.com/dungtt-astra/paymentnode/node"
+	"log"
+	"os"
+)
+
+// // Server Variable
+var machine *node.Node
+
+// // Init Function
+func init() {
+
+	var cfg = &config.Config{
+		ChainId:       "astra_11110-1",
+		Endpoint:      "http://128.199.238.171:26657",
+		CoinType:      60,
+		PrefixAddress: "astra",
+		TokenSymbol:   "aastra",
+		NodeAddr:      ":50005",
+		Tcp:           "tcp",
+	}
+
+	log.Println("Init ....")
+
+	machine = node.NewNode(cfg)
+}
+
+// // Main Function
+func main() {
+	// Starting Seoser
+
+	machine.Start(os.Args)
+}

@@ -23,7 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeClient interface {
 	RequestOpenChannel(ctx context.Context, in *MsgReqOpenChannel, opts ...grpc.CallOption) (*MsgResOpenChannel, error)
-	ConfirmOpenChannel(ctx context.Context, in *Msg, opts ...grpc.CallOption) (*Msg, error)
+	ConfirmOpenChannel(ctx context.Context, in *MsgConfirmOpenChannel, opts ...grpc.CallOption) (*MsgResConfirmOpenChannel, error)
 	//  rpc Register(MsgRegisterRequest) returns (MsgRegisterResponse) {};
 	OpenStream(ctx context.Context, opts ...grpc.CallOption) (Node_OpenStreamClient, error)
 }
@@ -45,8 +45,8 @@ func (c *nodeClient) RequestOpenChannel(ctx context.Context, in *MsgReqOpenChann
 	return out, nil
 }
 
-func (c *nodeClient) ConfirmOpenChannel(ctx context.Context, in *Msg, opts ...grpc.CallOption) (*Msg, error) {
-	out := new(Msg)
+func (c *nodeClient) ConfirmOpenChannel(ctx context.Context, in *MsgConfirmOpenChannel, opts ...grpc.CallOption) (*MsgResConfirmOpenChannel, error) {
+	out := new(MsgResConfirmOpenChannel)
 	err := c.cc.Invoke(ctx, "/node.Node/ConfirmOpenChannel", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func (x *nodeOpenStreamClient) Recv() (*Msg, error) {
 // for forward compatibility
 type NodeServer interface {
 	RequestOpenChannel(context.Context, *MsgReqOpenChannel) (*MsgResOpenChannel, error)
-	ConfirmOpenChannel(context.Context, *Msg) (*Msg, error)
+	ConfirmOpenChannel(context.Context, *MsgConfirmOpenChannel) (*MsgResConfirmOpenChannel, error)
 	//  rpc Register(MsgRegisterRequest) returns (MsgRegisterResponse) {};
 	OpenStream(Node_OpenStreamServer) error
 	mustEmbedUnimplementedNodeServer()
@@ -103,7 +103,7 @@ type UnimplementedNodeServer struct {
 func (UnimplementedNodeServer) RequestOpenChannel(context.Context, *MsgReqOpenChannel) (*MsgResOpenChannel, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequestOpenChannel not implemented")
 }
-func (UnimplementedNodeServer) ConfirmOpenChannel(context.Context, *Msg) (*Msg, error) {
+func (UnimplementedNodeServer) ConfirmOpenChannel(context.Context, *MsgConfirmOpenChannel) (*MsgResConfirmOpenChannel, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ConfirmOpenChannel not implemented")
 }
 func (UnimplementedNodeServer) OpenStream(Node_OpenStreamServer) error {
@@ -141,7 +141,7 @@ func _Node_RequestOpenChannel_Handler(srv interface{}, ctx context.Context, dec 
 }
 
 func _Node_ConfirmOpenChannel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Msg)
+	in := new(MsgConfirmOpenChannel)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -153,7 +153,7 @@ func _Node_ConfirmOpenChannel_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: "/node.Node/ConfirmOpenChannel",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeServer).ConfirmOpenChannel(ctx, req.(*Msg))
+		return srv.(NodeServer).ConfirmOpenChannel(ctx, req.(*MsgConfirmOpenChannel))
 	}
 	return interceptor(ctx, in, info, handler)
 }

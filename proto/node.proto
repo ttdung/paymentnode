@@ -9,11 +9,6 @@ enum ConnectionStatus {
   CLOSE = 1;
 }
 
-enum RegisterStatus {
-  ACCEPTED = 0;
-  PENDING = 1;
-  REJECTED = 2;
-}
 
 enum MsgType {
   ERROR = 0;
@@ -23,7 +18,7 @@ enum MsgType {
 
 service Node {
   rpc RequestOpenChannel(MsgReqOpenChannel) returns (MsgResOpenChannel) {};
-  rpc ConfirmOpenChannel(Msg) returns(Msg) {};
+  rpc ConfirmOpenChannel(MsgConfirmOpenChannel) returns(MsgResConfirmOpenChannel) {};
 //  rpc Register(MsgRegisterRequest) returns (MsgRegisterResponse) {};
   rpc OpenStream(stream Msg) returns (stream Msg) {};
 }
@@ -41,6 +36,19 @@ message MsgRequest {
 message MsgResponse {
   uint32 code = 1;
   google.protobuf.Struct data = 2;
+}
+
+message MsgConfirmOpenChannel {
+  MsgType Type = 1;
+  string ChannelID = 2;
+  string Commitment_sig = 3;
+  string OpenChannelTx_sig = 4;
+}
+
+message MsgResConfirmOpenChannel {
+  uint32 Code = 2;
+  string TxHash = 3;
+  string Data = 4;
 }
 
 message MsgReqOpenChannel {
@@ -62,17 +70,8 @@ message MsgResOpenChannel {
   string Denom = 3;
   string Hashcode = 4;
   string Commitment_Sig = 5;
+  uint64 Nonce = 6;
 }
-
-//message MsgRegisterRequest {
-//  string ClientName = 1;
-//  bytes OptionalData = 2;
-//}
-//
-//message MsgRegisterResponse {
-//  RegisterStatus Status = 1;
-//  bytes OptionalData = 2;
-//}
 
 
 
