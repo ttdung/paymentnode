@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/AstraProtocol/channel/app"
 	channelTypes "github.com/AstraProtocol/channel/x/channel/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
@@ -15,7 +16,6 @@ import (
 	"github.com/dungtt-astra/paymentnode/pkg/user"
 	"github.com/dungtt-astra/paymentnode/pkg/utils"
 	node "github.com/dungtt-astra/paymentnode/proto"
-	"github.com/evmos/ethermint/app"
 	"github.com/evmos/ethermint/encoding"
 	ethermintTypes "github.com/evmos/ethermint/types"
 	"google.golang.org/grpc"
@@ -46,19 +46,29 @@ type Node struct {
 	//cn          *channel.Channel
 	//channelInfo data.Msg_Channel
 	rpcClient client.Context
-	Owner     *user.User
+	owner     *user.User
 	address   string
 }
 
 func (n *Node) Start(args []string) {
+
 	// create listener
 	tcp := "tcp"
 	address := ":50005"
 	tokenSymbol := "aastra"
 	var mmemonic = "leaf emerge will mix junior smile tortoise mystery scheme chair fancy afraid badge carpet pottery raw vicious hood exile amateur symbol battle oyster action"
+	var cfg = config.Config{
+		ChainId:       "astra_11110-1",
+		Endpoint:      "http://128.199.238.171:26657",
+		CoinType:      60,
+		PrefixAddress: "astra",
+		TokenSymbol:   "aastra",
+		NodeAddr:      ":50005",
+		Tcp:           "tcp",
+	}
 
 	if len(args) >= 2 {
-		n.Owner.Passcode = args[2]
+		n.owner.Passcode = args[2]
 		address = fmt.Sprintf(":%v", args[1])
 	}
 
@@ -75,8 +85,8 @@ func (n *Node) Start(args []string) {
 	// create grpc server
 	s := grpc.NewServer()
 	node.RegisterNodeServer(s, &Node{
-		rpcClient: n.rpcClient,
-		Owner:     owner,
+		rpcClient: NewRpcClient(cfg),
+		owner:     owner,
 		address:   address,
 	})
 
@@ -86,7 +96,8 @@ func (n *Node) Start(args []string) {
 	}
 }
 
-func NewNode(cfg *config.Config) *Node {
+func NewRpcClient(cfg config.Config) client.Context {
+
 	sdkConfig := sdk.GetConfig()
 	sdkConfig.SetPurpose(44)
 	sdkConfig.SetCoinType(ethermintTypes.Bip44CoinType) // Todo
@@ -122,12 +133,11 @@ func NewNode(cfg *config.Config) *Node {
 		WithBroadcastMode(flags.BroadcastSync).
 		WithTxConfig(encodingConfig.TxConfig)
 
-	return &Node{
-		rpcClient: rpcClient,
-	}
+	return rpcClient
 }
 
 func (n *Node) isThisNode(addr string) bool {
+
 	if addr != n.address {
 		return false
 	}
@@ -136,6 +146,7 @@ func (n *Node) isThisNode(addr string) bool {
 }
 
 func getNonce() uint64 {
+
 	var mu sync.Mutex
 	mu.Lock()
 	nonce++
@@ -161,13 +172,13 @@ func (n *Node) doReplyOpenChannel(req *node.MsgReqOpenChannel, cn *common.Channe
 	channelID := fmt.Sprintf("%v:%v:%v", req.PartA_Addr, req.PartB_Addr, req.Denom)
 	commitID := fmt.Sprintf("%v:%v", channelID, com_nonce)
 
-	secret, hashcode := n.Owner.GenerateHashcode(commitID)
+	secret, hashcode := n.owner.GenerateHashcode(commitID)
 
 	comm := common.Commitment_st{
 		ChannelID:   channelID,
 		Denom:       req.Denom,
 		BalanceA:    float64(req.Deposit_Amt + req.FirstRecv - req.FirstSend),
-		BalanceB:    n.Owner.Deposit_Amt - float64(req.FirstRecv+req.FirstSend),
+		BalanceB:    n.owner.Deposit_Amt - float64(req.FirstRecv+req.FirstSend),
 		HashcodeA:   req.Hashcode,
 		HashcodeB:   hashcode,
 		SecretA:     "",
@@ -178,7 +189,7 @@ func (n *Node) doReplyOpenChannel(req *node.MsgReqOpenChannel, cn *common.Channe
 		Nonce:       com_nonce,
 	}
 
-	_, str_sig, err := utils.BuildAndSignCommitmentMsg(n.rpcClient, n.Owner.Account, &comm, cn)
+	_, str_sig, err := utils.BuildAndSignCommitmentMsg(n.rpcClient, n.owner.Account, &comm, cn)
 	if err != nil {
 		return nil, err
 	}
@@ -188,8 +199,8 @@ func (n *Node) doReplyOpenChannel(req *node.MsgReqOpenChannel, cn *common.Channe
 
 	res := &node.MsgResOpenChannel{
 		Pubkey:         cn.PubkeyB.String(),
-		Deposit_Amt:    uint64(n.Owner.Deposit_Amt),
-		Denom:          n.Owner.Denom,
+		Deposit_Amt:    uint64(n.owner.Deposit_Amt),
+		Denom:          n.owner.Denom,
 		Hashcode:       hashcode,
 		Commitment_Sig: str_sig,
 		Nonce:          com_nonce,
@@ -202,7 +213,7 @@ func (n *Node) parseToChannelSt(req *node.MsgReqOpenChannel) (*common.Channel_st
 
 	peerPubkey, err := account.NewPKAccount(req.PubkeyA)
 
-	multisigAddr, multiSigPubkey, err := account.NewAccount(60).CreateMulSignAccountFromTwoAccount(peerPubkey.PublicKey(), n.Owner.Account.PublicKey(), 2)
+	multisigAddr, multiSigPubkey, err := account.NewAccount(60).CreateMulSignAccountFromTwoAccount(peerPubkey.PublicKey(), n.owner.Account.PublicKey(), 2)
 	if err != nil {
 		return nil, err
 	}
@@ -215,10 +226,10 @@ func (n *Node) parseToChannelSt(req *node.MsgReqOpenChannel) (*common.Channel_st
 		PartA:           req.PartA_Addr,
 		PartB:           req.PartB_Addr,
 		PubkeyA:         peerPubkey.PublicKey(),
-		PubkeyB:         n.Owner.GetPubkey(),
+		PubkeyB:         n.owner.GetPubkey(),
 		Denom:           req.Denom,
 		Amount_partA:    float64(req.Deposit_Amt),
-		Amount_partB:    n.Owner.Deposit_Amt,
+		Amount_partB:    n.owner.Deposit_Amt,
 		Timelock:        uint64(TIMELOCK),
 	}
 	return chann, nil
@@ -226,7 +237,7 @@ func (n *Node) parseToChannelSt(req *node.MsgReqOpenChannel) (*common.Channel_st
 
 func (n *Node) handleRequestOpenChannel(req *node.MsgReqOpenChannel) (*node.MsgResOpenChannel, error) {
 
-	log.Println("PartB addr:", n.Owner.GetAccountAddr())
+	log.Println("PartB addr:", n.owner.GetAccountAddr())
 	log.Println("PartA addr:", req.PartA_Addr)
 
 	if n.isThisNode(req.PeerNodeAddr) {
@@ -291,16 +302,20 @@ func (n *Node) handleConfirmOpenChannel(msg *node.MsgConfirmOpenChannel) (*sdk.T
 
 	chann := channel_map[msg.ChannelID]
 
-	openChannelRequest, partBsig, err := utils.BuildAndSignOpenChannelMsg(n.rpcClient, n.Owner.Account, chann)
+	openChannelRequest, partBsig, err := utils.BuildAndSignOpenChannelMsg(n.rpcClient, n.owner.Account, chann)
 	if err != nil {
 		return nil, err
 	}
+	log.Println("openChannelRequest:", openChannelRequest)
+	log.Println("sig:", partBsig)
 
 	txResponse, err := utils.BuildAndBroadCastMultisigMsg(n.rpcClient, chann.Multisig_Pubkey, msg.OpenChannelTxSig, partBsig, openChannelRequest)
 	if err != nil {
 		log.Printf("BuildAndBroadCastMultisigMsg Err: %v", err.Error())
 		return nil, err
 	}
+
+	log.Printf("txhash: %v, code: %v \n", txResponse.TxHash, txResponse.Code)
 
 	return txResponse, nil
 }

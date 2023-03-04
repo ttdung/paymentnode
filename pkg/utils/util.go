@@ -11,7 +11,6 @@ import (
 	"github.com/dungtt-astra/astra-go-sdk/channel"
 	sdkcommon "github.com/dungtt-astra/astra-go-sdk/common"
 	"github.com/dungtt-astra/paymentnode/pkg/common"
-	"log"
 )
 
 func BuildCommitmentMsg(com *common.Commitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
@@ -58,7 +57,7 @@ func BuildAndSignCommitmentMsg(rpcClient client.Context, account *account.Privat
 	return openChannelRequest, strSig, nil
 }
 
-func BuildOpenChannelMsg(chann *common.Channel_st) channel.SignMsgRequest {
+func BuildOpenChannelMsg(chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
 	msg := channelTypes.MsgOpenChannel{
 		Creator: chann.Multisig_Addr,
 		PartA:   chann.PartA,
@@ -76,8 +75,8 @@ func BuildOpenChannelMsg(chann *common.Channel_st) channel.SignMsgRequest {
 
 	openChannelRequest := channel.SignMsgRequest{
 		Msg:      &msg,
-		GasLimit: 200000,
-		GasPrice: "25aastra",
+		GasLimit: gaslimit,
+		GasPrice: gasprice,
 	}
 
 	return openChannelRequest
@@ -85,7 +84,7 @@ func BuildOpenChannelMsg(chann *common.Channel_st) channel.SignMsgRequest {
 
 func BuildAndSignOpenChannelMsg(rpcClient client.Context, account *account.PrivateKeySerialized, chann *common.Channel_st) (channel.SignMsgRequest, string, error) {
 
-	openChannelRequest := BuildOpenChannelMsg(chann)
+	openChannelRequest := BuildOpenChannelMsg(chann, 200000, "25aastra")
 	//fmt.Println("openChannelRequest:", openChannelRequest)
 
 	strSig, err := channel.NewChannel(rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
@@ -98,6 +97,7 @@ func BuildAndSignOpenChannelMsg(rpcClient client.Context, account *account.Priva
 }
 
 func BuildAndBroadCastMultisigMsg(client client.Context, multiSigPubkey cryptoTypes.PubKey, sig1, sig2 string, msgRequest channel.SignMsgRequest) (*sdk.TxResponse, error) {
+
 	signList := make([][]signingTypes.SignatureV2, 0)
 
 	signByte1, err := sdkcommon.TxBuilderSignatureJsonDecoder(client.TxConfig, sig1)
@@ -110,9 +110,6 @@ func BuildAndBroadCastMultisigMsg(client client.Context, multiSigPubkey cryptoTy
 	if err != nil {
 		return nil, err
 	}
-
-	log.Println("strSig1:", signByte1)
-	log.Println("strSig2:", signByte2)
 
 	signList = append(signList, signByte2)
 
@@ -143,8 +140,6 @@ func BuildAndBroadCastMultisigMsg(client client.Context, multiSigPubkey cryptoTy
 	if err != nil {
 		return nil, err
 	}
-
-	// txHash := common.TxHash(txByte)
 
 	return client.BroadcastTxCommit(txByte)
 }

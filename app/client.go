@@ -83,7 +83,7 @@ func (c *MachineClient) Init(stream node.Node_OpenStreamClient) {
 	c.timelock = 100
 
 	// channel
-	channel_st.PartB = "astra10tr8rvr68z72smq55d0ndu6tkjn6m055frzz28"
+	channel_st.PartB = "astra1xu9rev8fw0y9wrutv0llthwjsmppp9nn0su4uh"
 
 	// set astra address
 	sdkConfig := sdk.GetConfig()
@@ -229,7 +229,7 @@ func (c *MachineClient) buildChannelInfo(req *node.MsgReqOpenChannel, res *node.
 		PubkeyB:         peerPubkey.PublicKey(),
 		Denom:           req.Denom,
 		Amount_partA:    float64(req.Deposit_Amt),
-		Amount_partB:    float64(c.amount),
+		Amount_partB:    float64(res.Deposit_Amt),
 	}
 
 	return chann, nil
@@ -337,12 +337,14 @@ func (c *MachineClient) buildConfirmMsg(com *common.Commitment_st, channinfo *co
 	}
 
 	// bụild openchannel tx msg
-	_, openchannel_sig, err := utils.BuildAndSignOpenChannelMsg(c.rpcClient, c.account, channinfo)
+	msgopen, openchannel_sig, err := utils.BuildAndSignOpenChannelMsg(c.rpcClient, c.account, channinfo)
 	if err != nil {
 		msg.Type = node.MsgType_ERROR
 		msg.CommitmentSig = err.Error()
 		return msg
 	}
+	log.Println("MsgOpen: ", msgopen)
+	log.Println("Sig MsgOpen: ", openchannel_sig)
 
 	msg.ChannelID = channinfo.Index
 	msg.CommitmentSig = com_sig
@@ -401,7 +403,8 @@ func (c *MachineClient) openChannel() error {
 	}
 
 	log.Println("res ConfirmOpenChannelsto...")
-	log.Println(resConfirm)
+	log.Println("TxHash;", resConfirm.TxHash)
+	log.Println("Code;", resConfirm.Code)
 
 	return nil
 }
