@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"fmt"
 	channelTypes "github.com/AstraProtocol/channel/x/channel/types"
@@ -21,6 +22,7 @@ import (
 	"github.com/evmos/ethermint/encoding"
 	ethermintTypes "github.com/evmos/ethermint/types"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"io"
 	"log"
 	"time"
@@ -30,23 +32,32 @@ var (
 	serverAddr = flag.String("server_addr", "localhost:50005", "The server address in the format of host:port")
 )
 
-//type MachineClient struct {
-//	//machine.UnimplementedMachineClient
-//	stream    machine.Machine_ExecuteClient
-//	account   *account.PrivateKeySerialized
-//	denom     string
-//	amount    int64
-//	version   string
-//	channel   data.Msg_Channel
-//	cn        *channel.Channel
-//	rpcClient client.Context
-//}
+//	type MachineClient struct {
+//		//machine.UnimplementedMachineClient
+//		stream    machine.Machine_ExecuteClient
+//		account   *account.PrivateKeySerialized
+//		denom     string
+//		amount    int64
+//		version   string
+//		channel   data.Msg_Channel
+//		cn        *channel.Channel
+//		rpcClient client.Context
+//	}
+type Balance struct {
+	partA float64
+	partB float64
+}
+
+var balance_map = make(map[string]*Balance)
 
 var mmemonic = "baby cancel magnet patient urge regular ribbon scorpion buyer zoo muffin style echo flock soda text door multiply present vocal budget employ target radar"
 
 var waitc = make(chan struct{})
 
 var comm_map = make(map[string]*common.Commitment_st)
+
+var pre_commid string
+var channel_st common.Channel_st
 
 type MachineClient struct {
 	//machine.UnimplementedMachineClient
@@ -69,8 +80,6 @@ var cfg = &config.Config{
 	PrefixAddress: "astra",
 	TokenSymbol:   "aastra",
 }
-
-var channel_st common.Channel_st
 
 func (c *MachineClient) Init(stream node.Node_OpenStreamClient) {
 
@@ -155,7 +164,24 @@ func connect(serverAddr *string) (node.NodeClient, node.Node_OpenStreamClient, *
 	return client, stream, conn, err
 }
 
+type NotifReqPaymentSt struct {
+	ChannelID string
+	SendAmt   uint64
+	RecvAmt   uint64
+	Nonce     uint64
+	Hashcode  string
+}
+
 func eventHandler(c *MachineClient) {
+
+	channelID := fmt.Sprintf("%v:%v:%v", c.account.AccAddress().String(), channel_st.PartB, c.denom)
+
+	msg := &node.Msg{
+		Type: node.MsgType_REG_CHANNEL,
+		Data: []byte(channelID),
+	}
+	c.stream.Send(msg)
+
 	for {
 		msg, err := c.stream.Recv()
 		if err == io.EOF {
@@ -170,25 +196,29 @@ func eventHandler(c *MachineClient) {
 		}
 		log.Printf("output: %v", msg.String())
 
-		//cmd := msg.GetCmd()
-		//data := msg.GetData()
+		msgtype := msg.GetType()
+		data := msg.GetData()
 		//cmd_type := util.CmdType(cmd)
 		//
-		//switch cmd_type {
-		//case util.REP_OPENCHANNEL:
-		//	log.Println("reply openchanfieldsg")
-		//	log.Println("partA_pubkey:", data.Fields[field.Public_key].GetStringValue())
-		//	c.handleReplyOpenChannel(data)
+		switch msgtype {
+		case node.MsgType_REQ_PAYMENT:
+			var rp NotifReqPaymentSt
+			json.Unmarshal(data, &rp)
+			log.Println("Notif Req payment....")
+			log.Println("ChannelID:", rp.ChannelID)
+			log.Println("SendAmt:", rp.SendAmt)
+			c.makePayment(rp)
 		//
 		//case util.MSG_ERROR:
 		//	log.Fatalf("Error: %v", data.Fields[field.Error].GetStringValue())
 
-		//default:
-		//	close(waitc)
-		//	//return status.Errorf(codes.Unimplemented, "Operation '%s' not implemented yet", operator)
-		//	log.Println(codes.Unimplemented, "Operation '%s' not implemented yet", cmd)
-		//
-		//	return
+		default:
+			close(waitc)
+			//return status.Errorf(codes.Unimplemented, "Operation '%s' not implemented yet", operator)
+			log.Println(codes.Unimplemented, "Operation '%s' not implemented yet ", msgtype)
+
+			return
+		}
 	}
 }
 
@@ -353,6 +383,62 @@ func (c *MachineClient) buildConfirmMsg(com *common.Commitment_st, channinfo *co
 	return msg
 }
 
+func (c *MachineClient) makePayment(rp NotifReqPaymentSt) error {
+
+	//balance_map
+	secret, hashcode := c.GenerateHashcode(rp.ChannelID)
+
+	com := &common.Commitment_st{
+		ChannelID:   rp.ChannelID,
+		Denom:       c.denom,
+		BalanceA:    balance_map[rp.ChannelID].partA + float64(rp.SendAmt-rp.RecvAmt),
+		BalanceB:    balance_map[rp.ChannelID].partB + float64(rp.RecvAmt-rp.SendAmt),
+		HashcodeA:   hashcode,
+		HashcodeB:   rp.Hashcode,
+		SecretA:     secret,
+		SecretB:     "",
+		PenaltyA_Tx: "",
+		PenaltyB_Tx: "",
+		Timelock:    c.timelock,
+		Nonce:       rp.Nonce,
+	}
+
+	commid := fmt.Sprintf("%v:%v", rp.ChannelID, rp.Nonce)
+	comm_map[commid] = com
+
+	// build commitment msg
+	_, com_sig, err := utils.BuildAndSignCommitmentMsg(c.rpcClient, c.account, com, &channel_st)
+	if err != nil {
+		return err
+	}
+
+	msgRP := &node.MsgReqPayment{
+		ChannelID:     rp.ChannelID,
+		SendAmt:       rp.RecvAmt,
+		RecvAmt:       rp.SendAmt,
+		Hashcode:      hashcode,
+		CommitmentID:  commid,
+		CommitmentSig: com_sig,
+	}
+
+	resPayment, err := c.client.RequestPayment(context.Background(), msgRP)
+	if err != nil {
+		return err
+	}
+
+	log.Println("Response RequestPayment", resPayment)
+
+	msgCP := &node.MsgConfirmPayment{
+		SecretPreComm: comm_map[pre_commid].SecretA,
+	}
+
+	pre_commid = commid
+
+	_, err = c.client.ConfirmPayment(context.Background(), msgCP)
+
+	return err
+}
+
 func (c *MachineClient) openChannel() error {
 
 	//pubkey := c.account.PublicKey().String()
@@ -372,6 +458,11 @@ func (c *MachineClient) openChannel() error {
 		FirstRecv:    1,
 	}
 
+	balance_map[channelID] = &Balance{
+		float64(req.Deposit_Amt + req.FirstRecv - req.FirstSend),
+		0,
+	}
+
 	log.Println("RequestOpenChannel ...")
 	res, err := c.client.RequestOpenChannel(context.Background(), req)
 	if err != nil {
@@ -383,8 +474,13 @@ func (c *MachineClient) openChannel() error {
 
 	comid := fmt.Sprintf("%v:%v", cominfo.ChannelID, cominfo.Nonce)
 	comm_map[comid] = cominfo
+	pre_commid = comid
+	balance_map[cominfo.ChannelID] = &Balance{
+		cominfo.BalanceA,
+		cominfo.BalanceB,
+	}
 
-	chann_st, err := c.buildChannelInfo(req, res)
+	channel_st, err := c.buildChannelInfo(req, res)
 	if err != nil {
 		log.Println(err)
 	}
@@ -394,7 +490,7 @@ func (c *MachineClient) openChannel() error {
 	log.Println("response RequestOpenChannel info...")
 	log.Println(res)
 
-	confirmMsg := c.buildConfirmMsg(cominfo, &chann_st)
+	confirmMsg := c.buildConfirmMsg(cominfo, &channel_st)
 
 	log.Println("ConfirmOpenChannel ...")
 	resConfirm, err := c.client.ConfirmOpenChannel(context.Background(), confirmMsg)

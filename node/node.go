@@ -2,6 +2,7 @@ package paymentnode
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/AstraProtocol/channel/app"
@@ -23,9 +24,10 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
-var TIMELOCK = 100
+var TIMELOCK = uint64(100)
 
 var channel_map = make(map[string]*common.Channel_st)
 
@@ -36,9 +38,21 @@ type openchann_info struct {
 	openchannel_sig_partB string
 }
 
+type Balance struct {
+	partA     float64
+	partB     float64
+	preSecret string
+	secret    string
+}
+
+var balance_map = make(map[string]*Balance)
+
 var openchanninfo_map = make(map[string]*openchann_info)
 
 var nonce = uint64(0)
+
+var g_channelid string
+var gas_price = uint64(25)
 
 type Node struct {
 	node.UnimplementedNodeServer
@@ -189,6 +203,12 @@ func (n *Node) doReplyOpenChannel(req *node.MsgReqOpenChannel, cn *common.Channe
 		Nonce:       com_nonce,
 	}
 
+	g_channelid = channelID
+	balance_map[channelID].partA = comm.BalanceA
+	balance_map[channelID].partB = comm.BalanceB
+	balance_map[channelID].secret = secret
+	balance_map[channelID].preSecret = secret
+
 	_, str_sig, err := utils.BuildAndSignCommitmentMsg(n.rpcClient, n.owner.Account, &comm, cn)
 	if err != nil {
 		return nil, err
@@ -320,9 +340,18 @@ func (n *Node) handleConfirmOpenChannel(msg *node.MsgConfirmOpenChannel) (*sdk.T
 	return txResponse, nil
 }
 
+func (n *Node) validateConfirmOpenChannel(msg *node.MsgConfirmOpenChannel) error {
+	// todo validateConfirmOpenChannel
+	return nil
+}
+
 func (n *Node) ConfirmOpenChannel(ctx context.Context, msg *node.MsgConfirmOpenChannel) (*node.MsgResConfirmOpenChannel, error) {
 
 	log.Println("ConfirmOpenChannel receive:", msg)
+
+	if err := n.validateConfirmOpenChannel(msg); err != nil {
+		return nil, err
+	}
 
 	txResponse, err := n.handleConfirmOpenChannel(msg)
 	if err != nil {
@@ -330,18 +359,118 @@ func (n *Node) ConfirmOpenChannel(ctx context.Context, msg *node.MsgConfirmOpenC
 		return nil, err
 	}
 
+	txfee := uint64(txResponse.GasUsed) * gas_price
+
 	resmsg := &node.MsgResConfirmOpenChannel{
 		Code:   txResponse.Code,
 		TxHash: txResponse.TxHash,
 		Data:   txResponse.Data,
+		TxFee:  txfee,
 	}
 
 	return resmsg, nil
 	//return nil, status.Errorf(codes.Unimplemented, "meresd ConfirmOpenChannel not implemented")
 }
 
+type NotifReqPaymentSt struct {
+	ChannelID string
+	SendAmt   uint64
+	RecvAmt   uint64
+	Nonce     uint64
+	Hashcode  string
+}
+
+func (n *Node) NotifyPayment(channelID string) error {
+
+	log.Println("NotifyPayment")
+
+	tnonce := getNonce()
+	stream := stream_map[channelID]
+	commitID := fmt.Sprintf("%v:%v", channelID, tnonce)
+	secret, hashcode := n.owner.GenerateHashcode(commitID)
+
+	rp := NotifReqPaymentSt{
+		ChannelID: channelID,
+		SendAmt:   1,
+		RecvAmt:   0,
+		Nonce:     tnonce,
+		Hashcode:  hashcode,
+	}
+
+	comm := &common.Commitment_st{
+		ChannelID:   channelID,
+		Denom:       n.owner.Denom,
+		BalanceA:    balance_map[channelID].partA + float64(rp.SendAmt-rp.RecvAmt),
+		BalanceB:    balance_map[channelID].partB + float64(rp.RecvAmt-rp.SendAmt),
+		HashcodeA:   "",
+		HashcodeB:   hashcode,
+		SecretA:     "",
+		SecretB:     secret,
+		PenaltyA_Tx: "",
+		PenaltyB_Tx: "",
+		Timelock:    TIMELOCK,
+		Nonce:       tnonce,
+	}
+
+	commid := fmt.Sprintf("%v:%v", comm, tnonce)
+	commitment_map[commid] = comm
+
+	data, _ := json.Marshal(rp)
+	msg := &node.Msg{
+		Type: node.MsgType_REQ_PAYMENT,
+		Data: data,
+	}
+	stream.Send(msg)
+
+	return nil
+}
+
+func (n *Node) ConfirmPayment(ctx context.Context, msg *node.MsgConfirmPayment) (*node.MsgResConfirmPayment, error) {
+
+	log.Println("ConfirmPayment:", msg)
+
+	commitment_map[msg.CommID].SecretA = msg.SecretPreComm
+
+	return nil, nil
+}
+
+func (n *Node) RequestPayment(ctx context.Context, msg *node.MsgReqPayment) (*node.MsgResPayment, error) {
+
+	log.Println("RequestPayment: ", msg)
+	comm := commitment_map[msg.CommitmentID]
+	if comm == nil {
+		return nil, errors.New("Wrong commitment ID")
+	}
+
+	comm.HashcodeA = msg.Hashcode
+	commitment_map[msg.CommitmentID] = comm
+
+	_, com_sig, err := utils.BuildAndSignCommitmentMsg(n.rpcClient, n.owner.Account, comm, channel_map[msg.ChannelID])
+	if err != nil {
+		return nil, err
+	}
+
+	res := &node.MsgResPayment{
+		ChannelID:     msg.ChannelID,
+		CommitmentID:  msg.CommitmentID,
+		CommitmentSig: com_sig,
+		SecretPreComm: balance_map[msg.ChannelID].preSecret,
+	}
+
+	balance_map[msg.ChannelID].preSecret = balance_map[msg.ChannelID].secret
+	balance_map[msg.ChannelID].secret = comm.SecretB
+
+	return res, nil
+}
+
+var stream_map = make(map[string]node.Node_OpenStreamServer)
+
 func (n *Node) OpenStream(stream node.Node_OpenStreamServer) error {
 	for {
+		time.Sleep(6 * time.Second)
+
+		n.NotifyPayment(g_channelid)
+
 		msg, err := stream.Recv()
 		if err == io.EOF {
 			log.Println("EOF; End of stream")
@@ -354,6 +483,13 @@ func (n *Node) OpenStream(stream node.Node_OpenStreamServer) error {
 		msgType := msg.GetType()
 		msgData := msg.GetData()
 
+		switch msgType {
+		case node.MsgType_REG_CHANNEL:
+			stream_map[string(msgData)] = stream
+			//stream.Context().
+		default:
+
+		}
 		log.Printf("Received Msg type: %v, RawData: %+v\n", msgType, string(msgData))
 
 	}

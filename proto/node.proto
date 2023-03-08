@@ -14,11 +14,15 @@ enum MsgType {
   ERROR = 0;
   CONFIRM_OPENCHANNEL = 1;
   RESPONSEDATA = 2;
+  REQ_PAYMENT = 3;
+  REG_CHANNEL = 4;
 }
 
 service Node {
   rpc RequestOpenChannel(MsgReqOpenChannel) returns (MsgResOpenChannel) {};
   rpc ConfirmOpenChannel(MsgConfirmOpenChannel) returns(MsgResConfirmOpenChannel) {};
+  rpc RequestPayment(MsgReqPayment) returns (MsgResPayment) {};
+  rpc ConfirmPayment(MsgConfirmPayment) returns (MsgResConfirmPayment) {};
 //  rpc Register(MsgRegisterRequest) returns (MsgRegisterResponse) {};
   rpc OpenStream(stream Msg) returns (stream Msg) {};
 }
@@ -38,6 +42,35 @@ message MsgResponse {
   google.protobuf.Struct data = 2;
 }
 
+message MsgReqPayment {
+  string ChannelID = 1;
+  uint64 SendAmt = 2;
+  uint64 RecvAmt = 3;
+  string Hashcode = 4;
+  string CommitmentID = 5;
+  string Commitment_sig = 6;
+}
+
+message MsgResPayment {
+  string ChannelID = 1;
+  string CommitmentID = 2;
+  string Commitment_sig = 3;
+  string SecretPreComm = 4;
+}
+
+message MsgConfirmPayment {
+  string ChannelID = 1;
+  string CommID = 2;
+  string SecretPreComm = 3;
+}
+
+message MsgResConfirmPayment {
+  string ChannelID = 1;
+  string CommID = 2;
+  MsgType type = 3;
+  string Data = 4;
+}
+
 message MsgConfirmOpenChannel {
   MsgType Type = 1;
   string ChannelID = 2;
@@ -49,6 +82,7 @@ message MsgResConfirmOpenChannel {
   uint32 Code = 2;
   string TxHash = 3;
   string Data = 4;
+  uint64 TxFee = 5;
 }
 
 message MsgReqOpenChannel {
