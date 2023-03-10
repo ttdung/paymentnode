@@ -24,7 +24,6 @@ import (
 	"log"
 	"net"
 	"sync"
-	"time"
 )
 
 var TIMELOCK = uint64(100)
@@ -45,7 +44,7 @@ type Balance struct {
 	secret    string
 }
 
-var balance_map = make(map[string]*Balance)
+var balance_map = make(map[string]Balance)
 
 var openchanninfo_map = make(map[string]*openchann_info)
 
@@ -203,11 +202,17 @@ func (n *Node) doReplyOpenChannel(req *node.MsgReqOpenChannel, cn *common.Channe
 		Nonce:       com_nonce,
 	}
 
+	log.Println("comm:", comm)
 	g_channelid = channelID
-	balance_map[channelID].partA = comm.BalanceA
-	balance_map[channelID].partB = comm.BalanceB
-	balance_map[channelID].secret = secret
-	balance_map[channelID].preSecret = secret
+	balance_map[channelID] = Balance{
+		comm.BalanceA,
+		comm.BalanceB,
+		secret,
+		secret,
+	}
+	//balance_map[channelID].partB = comm.BalanceB
+	//balance_map[channelID].secret = secret
+	//balance_map[channelID].preSecret = secret
 
 	_, str_sig, err := utils.BuildAndSignCommitmentMsg(n.rpcClient, n.owner.Account, &comm, cn)
 	if err != nil {
@@ -326,8 +331,8 @@ func (n *Node) handleConfirmOpenChannel(msg *node.MsgConfirmOpenChannel) (*sdk.T
 	if err != nil {
 		return nil, err
 	}
-	log.Println("openChannelRequest:", openChannelRequest)
-	log.Println("sig:", partBsig)
+	//log.Println("openChannelRequest:", openChannelRequest)
+	//log.Println("sig:", partBsig)
 
 	txResponse, err := utils.BuildAndBroadCastMultisigMsg(n.rpcClient, chann.Multisig_Pubkey, msg.OpenChannelTxSig, partBsig, openChannelRequest)
 	if err != nil {
@@ -368,6 +373,9 @@ func (n *Node) ConfirmOpenChannel(ctx context.Context, msg *node.MsgConfirmOpenC
 		TxFee:  txfee,
 	}
 
+	log.Println("Balance A:", balance_map[msg.ChannelID].partA)
+	log.Println("Balance B:", balance_map[msg.ChannelID].partB)
+
 	return resmsg, nil
 	//return nil, status.Errorf(codes.Unimplemented, "meresd ConfirmOpenChannel not implemented")
 }
@@ -400,8 +408,8 @@ func (n *Node) NotifyPayment(channelID string) error {
 	comm := &common.Commitment_st{
 		ChannelID:   channelID,
 		Denom:       n.owner.Denom,
-		BalanceA:    balance_map[channelID].partA + float64(rp.SendAmt-rp.RecvAmt),
-		BalanceB:    balance_map[channelID].partB + float64(rp.RecvAmt-rp.SendAmt),
+		BalanceA:    balance_map[channelID].partA + float64(rp.SendAmt) - float64(rp.RecvAmt),
+		BalanceB:    balance_map[channelID].partB + float64(rp.RecvAmt) - float64(rp.SendAmt),
 		HashcodeA:   "",
 		HashcodeB:   hashcode,
 		SecretA:     "",
@@ -412,7 +420,7 @@ func (n *Node) NotifyPayment(channelID string) error {
 		Nonce:       tnonce,
 	}
 
-	commid := fmt.Sprintf("%v:%v", comm, tnonce)
+	commid := fmt.Sprintf("%v:%v", comm.ChannelID, tnonce)
 	commitment_map[commid] = comm
 
 	data, _ := json.Marshal(rp)
@@ -431,7 +439,20 @@ func (n *Node) ConfirmPayment(ctx context.Context, msg *node.MsgConfirmPayment) 
 
 	commitment_map[msg.CommID].SecretA = msg.SecretPreComm
 
-	return nil, nil
+	log.Println("Balance A:", balance_map[msg.ChannelID].partA)
+	log.Println("Balance B:", balance_map[msg.ChannelID].partB)
+	//
+	//closemsg := &node.Msg{
+	//	Type: node.MsgType_MSG_CLOSE,
+	//	Data: []byte("Request close"),
+	//}
+	//err := stream_map[msg.ChannelID].Send(closemsg)
+	//log.Println("BuildAndSignCommitmentMsg: err:", err.Error())
+	res := &node.MsgResConfirmPayment{
+		ChannelID: msg.ChannelID,
+	}
+
+	return res, nil
 }
 
 func (n *Node) RequestPayment(ctx context.Context, msg *node.MsgReqPayment) (*node.MsgResPayment, error) {
@@ -457,8 +478,11 @@ func (n *Node) RequestPayment(ctx context.Context, msg *node.MsgReqPayment) (*no
 		SecretPreComm: balance_map[msg.ChannelID].preSecret,
 	}
 
-	balance_map[msg.ChannelID].preSecret = balance_map[msg.ChannelID].secret
-	balance_map[msg.ChannelID].secret = comm.SecretB
+	balance_map[msg.ChannelID] = Balance{comm.BalanceA,
+		comm.BalanceB,
+		balance_map[msg.ChannelID].secret,
+		comm.SecretB,
+	}
 
 	return res, nil
 }
@@ -467,10 +491,6 @@ var stream_map = make(map[string]node.Node_OpenStreamServer)
 
 func (n *Node) OpenStream(stream node.Node_OpenStreamServer) error {
 	for {
-		time.Sleep(6 * time.Second)
-
-		n.NotifyPayment(g_channelid)
-
 		msg, err := stream.Recv()
 		if err == io.EOF {
 			log.Println("EOF; End of stream")
@@ -486,6 +506,7 @@ func (n *Node) OpenStream(stream node.Node_OpenStreamServer) error {
 		switch msgType {
 		case node.MsgType_REG_CHANNEL:
 			stream_map[string(msgData)] = stream
+			n.NotifyPayment(g_channelid)
 			//stream.Context().
 		default:
 

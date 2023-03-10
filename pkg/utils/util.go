@@ -45,9 +45,6 @@ func BuildAndSignCommitmentMsg(rpcClient client.Context, account *account.Privat
 
 	openChannelRequest := BuildCommitmentMsg(com, chann, 200000, "25aastra")
 
-	fmt.Println("Multisig Address: ", chann.Multisig_Addr)
-	fmt.Println("openChannelRequest: ", openChannelRequest)
-
 	strSig, err := channel.NewChannel(rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
 	if err != nil {
 		fmt.Printf("SignMultisigTxFromOneAccount error: %v\n", err)

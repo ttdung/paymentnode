@@ -174,6 +174,8 @@ type NotifReqPaymentSt struct {
 
 func eventHandler(c *MachineClient) {
 
+	time.Sleep(3 * time.Second)
+
 	channelID := fmt.Sprintf("%v:%v:%v", c.account.AccAddress().String(), channel_st.PartB, c.denom)
 
 	msg := &node.Msg{
@@ -204,12 +206,23 @@ func eventHandler(c *MachineClient) {
 		case node.MsgType_REQ_PAYMENT:
 			var rp NotifReqPaymentSt
 			json.Unmarshal(data, &rp)
-			log.Println("Notif Req payment....")
-			log.Println("ChannelID:", rp.ChannelID)
-			log.Println("SendAmt:", rp.SendAmt)
-			c.makePayment(rp)
+			log.Println("Make payment....")
+			log.Println(rp)
+
+			err := c.makePayment(rp)
+			if err != nil {
+				log.Println("makePayment err:", err.Error())
+			}
+
+			log.Println("BalanceA: ", comm_map[pre_commid].BalanceA)
+			log.Println("BalanceB: ", comm_map[pre_commid].BalanceB)
+
+			close(waitc)
+			return
 		//
-		//case util.MSG_ERROR:
+		case node.MsgType_MSG_CLOSE:
+			close(waitc)
+			return
 		//	log.Fatalf("Error: %v", data.Fields[field.Error].GetStringValue())
 
 		default:
@@ -391,8 +404,8 @@ func (c *MachineClient) makePayment(rp NotifReqPaymentSt) error {
 	com := &common.Commitment_st{
 		ChannelID:   rp.ChannelID,
 		Denom:       c.denom,
-		BalanceA:    balance_map[rp.ChannelID].partA + float64(rp.SendAmt-rp.RecvAmt),
-		BalanceB:    balance_map[rp.ChannelID].partB + float64(rp.RecvAmt-rp.SendAmt),
+		BalanceA:    balance_map[rp.ChannelID].partA + float64(rp.SendAmt) - float64(rp.RecvAmt),
+		BalanceB:    balance_map[rp.ChannelID].partB + float64(rp.RecvAmt) - float64(rp.SendAmt),
 		HashcodeA:   hashcode,
 		HashcodeB:   rp.Hashcode,
 		SecretA:     secret,
@@ -407,6 +420,7 @@ func (c *MachineClient) makePayment(rp NotifReqPaymentSt) error {
 	comm_map[commid] = com
 
 	// build commitment msg
+	//log.Println("makePayment:", channel_st)
 	_, com_sig, err := utils.BuildAndSignCommitmentMsg(c.rpcClient, c.account, com, &channel_st)
 	if err != nil {
 		return err
@@ -421,16 +435,21 @@ func (c *MachineClient) makePayment(rp NotifReqPaymentSt) error {
 		CommitmentSig: com_sig,
 	}
 
-	resPayment, err := c.client.RequestPayment(context.Background(), msgRP)
+	_, err = c.client.RequestPayment(context.Background(), msgRP)
 	if err != nil {
+		log.Println("makePayment:RequestPayment err:", err.Error())
 		return err
 	}
 
-	log.Println("Response RequestPayment", resPayment)
+	//log.Println("Response RequestPayment", resPayment)
 
 	msgCP := &node.MsgConfirmPayment{
+		ChannelID:     rp.ChannelID,
+		CommID:        commid,
 		SecretPreComm: comm_map[pre_commid].SecretA,
 	}
+
+	//log.Println("MsgConfirmPayment Msg:", msgCP)
 
 	pre_commid = commid
 
@@ -480,15 +499,15 @@ func (c *MachineClient) openChannel() error {
 		cominfo.BalanceB,
 	}
 
-	channel_st, err := c.buildChannelInfo(req, res)
+	channel_st, err = c.buildChannelInfo(req, res)
 	if err != nil {
 		log.Println(err)
 	}
 
 	// todo build confirm Msg
 
-	log.Println("response RequestOpenChannel info...")
-	log.Println(res)
+	log.Println("openChannel... channel_st:")
+	log.Println(channel_st)
 
 	confirmMsg := c.buildConfirmMsg(cominfo, &channel_st)
 
@@ -498,7 +517,7 @@ func (c *MachineClient) openChannel() error {
 		log.Println(err)
 	}
 
-	log.Println("res ConfirmOpenChannelsto...")
+	log.Println("res ConfirmOpenChannel...")
 	log.Println("TxHash;", resConfirm.TxHash)
 	log.Println("Code;", resConfirm.Code)
 
@@ -519,16 +538,15 @@ func main() {
 
 	c.Init(stream)
 
-	go eventHandler(c)
-
 	c.openChannel()
 
-	time.Sleep(500 * time.Millisecond)
+	go eventHandler(c)
 
+	<-waitc
+	log.Println("Client close... ")
 	if err := stream.CloseSend(); err != nil {
 		log.Fatalf("%v.CloseSend() got error %v, want %v", stream, err, nil)
 	}
 
-	<-waitc
 	conn.Close()
 }

@@ -16,6 +16,7 @@ enum MsgType {
   RESPONSEDATA = 2;
   REQ_PAYMENT = 3;
   REG_CHANNEL = 4;
+  MSG_CLOSE = 5;
 }
 
 service Node {
