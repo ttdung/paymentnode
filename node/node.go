@@ -18,7 +18,6 @@ import (
 	"github.com/dungtt-astra/paymentnode/pkg/utils"
 	node "github.com/dungtt-astra/paymentnode/proto"
 	"github.com/evmos/ethermint/encoding"
-	ethermintTypes "github.com/evmos/ethermint/types"
 	"google.golang.org/grpc"
 	"io"
 	"log"
@@ -68,14 +67,24 @@ func (n *Node) Start(args []string) {
 	// create listener
 	tcp := "tcp"
 	address := ":50005"
-	tokenSymbol := "aastra"
-	var mmemonic = "leaf emerge will mix junior smile tortoise mystery scheme chair fancy afraid badge carpet pottery raw vicious hood exile amateur symbol battle oyster action"
+	tokenSymbol := "stake"
+	var mmemonic = "opera buyer enact elbow taxi blur clap swap rigid loud paper planet use shrug core tell device silent stomach stage green have monkey evolve"
+	//var cfg = config.Config{
+	//	ChainId:       "astra_11110-1",
+	//	Endpoint:      "http://128.199.238.171:26657",
+	//	CoinType:      ethermintTypes.Bip44CoinType,
+	//	PrefixAddress: "astra",
+	//	TokenSymbol:   "aastra",
+	//	NodeAddr:      ":50005",
+	//	Tcp:           "tcp",
+	//}
+
 	var cfg = config.Config{
-		ChainId:       "astra_11110-1",
-		Endpoint:      "http://128.199.238.171:26657",
-		CoinType:      60,
-		PrefixAddress: "astra",
-		TokenSymbol:   "aastra",
+		ChainId:       "testchain",
+		Endpoint:      "http://localhost:26657",
+		CoinType:      common.COINTYPE,
+		PrefixAddress: "cosmos",
+		TokenSymbol:   "stake",
 		NodeAddr:      ":50005",
 		Tcp:           "tcp",
 	}
@@ -113,7 +122,7 @@ func NewRpcClient(cfg config.Config) client.Context {
 
 	sdkConfig := sdk.GetConfig()
 	sdkConfig.SetPurpose(44)
-	sdkConfig.SetCoinType(ethermintTypes.Bip44CoinType) // Todo
+	sdkConfig.SetCoinType(cfg.CoinType) // Todo
 
 	bech32PrefixAccAddr := fmt.Sprintf("%v", cfg.PrefixAddress)
 	bech32PrefixAccPub := fmt.Sprintf("%vpub", cfg.PrefixAddress)
@@ -238,10 +247,12 @@ func (n *Node) parseToChannelSt(req *node.MsgReqOpenChannel) (*common.Channel_st
 
 	peerPubkey, err := account.NewPKAccount(req.PubkeyA)
 
-	multisigAddr, multiSigPubkey, err := account.NewAccount(60).CreateMulSignAccountFromTwoAccount(peerPubkey.PublicKey(), n.owner.Account.PublicKey(), 2)
+	multisigAddr, multiSigPubkey, err := account.NewAccount(common.COINTYPE).CreateMulSignAccountFromTwoAccount(peerPubkey.PublicKey(), n.owner.Account.PublicKey(), 2)
 	if err != nil {
 		return nil, err
 	}
+
+	log.Println("MultisigAddr:", multisigAddr)
 
 	channelID := fmt.Sprintf("%v:%v:%v", req.PartA_Addr, req.PartB_Addr, req.Denom)
 	chann := &common.Channel_st{
@@ -262,8 +273,8 @@ func (n *Node) parseToChannelSt(req *node.MsgReqOpenChannel) (*common.Channel_st
 
 func (n *Node) handleRequestOpenChannel(req *node.MsgReqOpenChannel) (*node.MsgResOpenChannel, error) {
 
-	log.Println("PartB addr:", n.owner.GetAccountAddr())
-	log.Println("PartA addr:", req.PartA_Addr)
+	log.Println("PartA addr:", req.PartA_Addr)           // client
+	log.Println("PartB addr:", n.owner.GetAccountAddr()) //node
 
 	if n.isThisNode(req.PeerNodeAddr) {
 
@@ -331,8 +342,8 @@ func (n *Node) handleConfirmOpenChannel(msg *node.MsgConfirmOpenChannel) (*sdk.T
 	if err != nil {
 		return nil, err
 	}
-	//log.Println("openChannelRequest:", openChannelRequest)
-	//log.Println("sig:", partBsig)
+	log.Println("openChannelRequest:", openChannelRequest)
+	log.Println("PartB OC sig:", partBsig)
 
 	txResponse, err := utils.BuildAndBroadCastMultisigMsg(n.rpcClient, chann.Multisig_Pubkey, msg.OpenChannelTxSig, partBsig, openChannelRequest)
 	if err != nil {
@@ -506,7 +517,7 @@ func (n *Node) OpenStream(stream node.Node_OpenStreamServer) error {
 		switch msgType {
 		case node.MsgType_REG_CHANNEL:
 			stream_map[string(msgData)] = stream
-			n.NotifyPayment(g_channelid)
+			//n.NotifyPayment(g_channelid)
 			//stream.Context().
 		default:
 

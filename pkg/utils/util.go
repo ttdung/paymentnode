@@ -5,12 +5,15 @@ import (
 	channelTypes "github.com/AstraProtocol/channel/x/channel/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	cryptoTypes "github.com/cosmos/cosmos-sdk/crypto/types"
+	"github.com/cosmos/cosmos-sdk/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	signingTypes "github.com/cosmos/cosmos-sdk/types/tx/signing"
 	"github.com/dungtt-astra/astra-go-sdk/account"
 	"github.com/dungtt-astra/astra-go-sdk/channel"
 	sdkcommon "github.com/dungtt-astra/astra-go-sdk/common"
 	"github.com/dungtt-astra/paymentnode/pkg/common"
+	"github.com/pkg/errors"
+	"log"
 )
 
 func BuildCommitmentMsg(com *common.Commitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
@@ -43,7 +46,7 @@ func BuildCommitmentMsg(com *common.Commitment_st, chann *common.Channel_st, gas
 }
 func BuildAndSignCommitmentMsg(rpcClient client.Context, account *account.PrivateKeySerialized, com *common.Commitment_st, chann *common.Channel_st) (channel.SignMsgRequest, string, error) {
 
-	openChannelRequest := BuildCommitmentMsg(com, chann, 200000, "25aastra")
+	openChannelRequest := BuildCommitmentMsg(com, chann, 200000, "0stake")
 
 	strSig, err := channel.NewChannel(rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
 	if err != nil {
@@ -81,7 +84,7 @@ func BuildOpenChannelMsg(chann *common.Channel_st, gaslimit uint64, gasprice str
 
 func BuildAndSignOpenChannelMsg(rpcClient client.Context, account *account.PrivateKeySerialized, chann *common.Channel_st) (channel.SignMsgRequest, string, error) {
 
-	openChannelRequest := BuildOpenChannelMsg(chann, 200000, "25aastra")
+	openChannelRequest := BuildOpenChannelMsg(chann, 200000, "0stake")
 	//fmt.Println("openChannelRequest:", openChannelRequest)
 
 	strSig, err := channel.NewChannel(rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
@@ -99,32 +102,42 @@ func BuildAndBroadCastMultisigMsg(client client.Context, multiSigPubkey cryptoTy
 
 	signByte1, err := sdkcommon.TxBuilderSignatureJsonDecoder(client.TxConfig, sig1)
 	if err != nil {
+		log.Println("TxBuilderSignatureJsonDecoder sig1 err:", err.Error())
 		return nil, err
 	}
 	signList = append(signList, signByte1)
 
 	signByte2, err := sdkcommon.TxBuilderSignatureJsonDecoder(client.TxConfig, sig2)
 	if err != nil {
+		log.Println("TxBuilderSignatureJsonDecoder sig2 err:", err.Error())
 		return nil, err
 	}
 
 	signList = append(signList, signByte2)
 
+	from := types.AccAddress(multiSigPubkey.Address())
+	accNum, accSeq, err := client.AccountRetriever.GetAccountNumberSequence(client, from)
+	if err != nil {
+		return nil, errors.Wrap(err, "GetAccountNumberSequence")
+	}
+
 	newTx := sdkcommon.NewTxMulSign(client,
 		nil,
 		msgRequest.GasLimit,
 		msgRequest.GasPrice,
-		0,
-		2,
+		accSeq,
+		accNum,
 	)
 
 	txBuilderMultiSign, err := newTx.BuildUnsignedTx(msgRequest.Msg)
 	if err != nil {
+		log.Println("BuildUnsignedTx err:", err.Error())
 		return nil, err
 	}
 
-	err = newTx.CreateTxMulSign(txBuilderMultiSign, multiSigPubkey, 60, signList)
+	err = newTx.CreateTxMulSign(txBuilderMultiSign, multiSigPubkey, common.COINTYPE, signList)
 	if err != nil {
+		log.Println("CreateTxMulSign err:", err.Error())
 		return nil, err
 	}
 
@@ -138,5 +151,18 @@ func BuildAndBroadCastMultisigMsg(client client.Context, multiSigPubkey cryptoTy
 		return nil, err
 	}
 
+	log.Println("BroadcastTxCommit str_sig:", string(txByte))
 	return client.BroadcastTxCommit(txByte)
+}
+
+func BuildAndBroadCastCommiment(client client.Context, chann *common.Channel_st, comm *common.Commitment_st) (*sdk.TxResponse, error) {
+
+	var msgRequest channel.SignMsgRequest
+
+	msgRequest = BuildCommitmentMsg(comm, chann, 200000, "0stake")
+	multiSigPubkey := chann.Multisig_Pubkey
+	sig1 := comm.StrSigA
+	sig2 := comm.StrSigB
+
+	return BuildAndBroadCastMultisigMsg(client, multiSigPubkey, sig1, sig2, msgRequest)
 }

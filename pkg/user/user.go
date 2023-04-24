@@ -6,6 +6,7 @@ import (
 	"fmt"
 	cryptoTypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/dungtt-astra/astra-go-sdk/account"
+	"github.com/dungtt-astra/paymentnode/pkg/common"
 	"time"
 )
 
@@ -19,7 +20,7 @@ type User struct {
 
 func NewUser(passcode string, denom string, deposit_amt float64, mmemonic string) (*User, error) {
 
-	acc, err := account.NewAccount(60).ImportAccount(mmemonic)
+	acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonic)
 	if err != nil {
 		return nil, err
 	}

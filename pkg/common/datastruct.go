@@ -34,3 +34,6 @@ type Commitment_st struct {
 	Timelock    uint64
 	Nonce       uint64
 }
+
+const COINTYPE = uint32(1) // test type for this project
+//const COINTYPE = ethermintTypes.Bip44CoinType

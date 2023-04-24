@@ -50,7 +50,9 @@ type Balance struct {
 
 var balance_map = make(map[string]*Balance)
 
-var mmemonic = "baby cancel magnet patient urge regular ribbon scorpion buyer zoo muffin style echo flock soda text door multiply present vocal budget employ target radar"
+var mmemonic = "draft eight argue sibling burden decade loop force walnut follow tunnel blossom elevator tank mutual hamster accident same primary year key loop doll keep"
+
+//"skull drastic call search soda fiction benefit route motor tell miracle develop float priority mom run unique tree scrub intact visual club file hundred"
 
 var waitc = make(chan struct{})
 
@@ -73,12 +75,20 @@ type MachineClient struct {
 	timelock  uint64
 }
 
+//var cfg = &config.Config{
+//	ChainId:       "astra_11110-1",
+//	Endpoint:      "http://128.199.238.171:26657",
+//	CoinType:      ethermintTypes.Bip44CoinType,
+//	PrefixAddress: "astra",
+//	TokenSymbol:   "aastra",
+//}
+
 var cfg = &config.Config{
-	ChainId:       "astra_11110-1",
-	Endpoint:      "http://128.199.238.171:26657",
-	CoinType:      60,
-	PrefixAddress: "astra",
-	TokenSymbol:   "aastra",
+	ChainId:       "testchain",
+	Endpoint:      "http://localhost:26657",
+	CoinType:      common.COINTYPE,
+	PrefixAddress: "cosmos",
+	TokenSymbol:   "stake",
 }
 
 func (c *MachineClient) Init(stream node.Node_OpenStreamClient) {
@@ -86,17 +96,18 @@ func (c *MachineClient) Init(stream node.Node_OpenStreamClient) {
 	c.passcode = "secret string"
 	c.stream = stream
 
-	c.denom = "aastra"
+	c.denom = "stake"
 	c.amount = 0
 	c.version = "0.1"
 	c.timelock = 100
 
 	// channel
-	channel_st.PartB = "astra1xu9rev8fw0y9wrutv0llthwjsmppp9nn0su4uh"
+	channel_st.PartB = "cosmos164xgenflr89l5q3q20e342z4ezpvyutlygaayf"
 
 	// set astra address
 	sdkConfig := sdk.GetConfig()
 	sdkConfig.SetPurpose(44)
+	//sdkConfig.SetCoinType(ethermintTypes.Bip44CoinType)
 	sdkConfig.SetCoinType(ethermintTypes.Bip44CoinType)
 
 	bech32PrefixAccAddr := fmt.Sprintf("%v", cfg.PrefixAddress)
@@ -110,7 +121,7 @@ func (c *MachineClient) Init(stream node.Node_OpenStreamClient) {
 	sdkConfig.SetBech32PrefixForValidator(bech32PrefixValAddr, bech32PrefixValPub)
 	sdkConfig.SetBech32PrefixForConsensusNode(bech32PrefixConsAddr, bech32PrefixConsPub)
 
-	acc, err := account.NewAccount(60).ImportAccount(mmemonic)
+	acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonic)
 	if err != nil {
 		log.Println("ImportAccount Err:", err.Error())
 		return
@@ -255,7 +266,7 @@ func (c *MachineClient) buildChannelInfo(req *node.MsgReqOpenChannel, res *node.
 	log.Println("server pubkey:", res.Pubkey)
 	peerPubkey, err := account.NewPKAccount(res.Pubkey)
 
-	multisigAddr, multiSigPubkey, err := account.NewAccount(60).CreateMulSignAccountFromTwoAccount(c.account.PublicKey(), peerPubkey.PublicKey(), 2)
+	multisigAddr, multiSigPubkey, err := account.NewAccount(common.COINTYPE).CreateMulSignAccountFromTwoAccount(c.account.PublicKey(), peerPubkey.PublicKey(), 2)
 	if err != nil {
 		return common.Channel_st{}, err
 	}
@@ -320,7 +331,7 @@ func (c *MachineClient) buildAndSignCommitmentMsg(com *common.Commitment_st, cha
 	openChannelRequest := channel.SignMsgRequest{
 		Msg:      &msg,
 		GasLimit: 200000,
-		GasPrice: "25aastra",
+		GasPrice: "0stake",
 	}
 	//fmt.Println("openChannelRequest:", openChannelRequest)
 
@@ -352,7 +363,7 @@ func (c *MachineClient) buildAndSignOpenChannelMsg(com *common.Commitment_st, ch
 	openChannelRequest := channel.SignMsgRequest{
 		Msg:      &msg,
 		GasLimit: 200000,
-		GasPrice: "25aastra",
+		GasPrice: "0stake",
 	}
 	//fmt.Println("openChannelRequest:", openChannelRequest)
 
@@ -362,6 +373,7 @@ func (c *MachineClient) buildAndSignOpenChannelMsg(com *common.Commitment_st, ch
 		return "", err
 	}
 
+	log.Println("Alice OC strSig:", strSig)
 	return strSig, nil
 }
 
@@ -461,6 +473,9 @@ func (c *MachineClient) makePayment(rp NotifReqPaymentSt) error {
 func (c *MachineClient) openChannel() error {
 
 	//pubkey := c.account.PublicKey().String()
+	//log.Println("PartA addr:", c.account.AccAddress().String()) //client
+	//log.Println("PartB addr:", channel_st.PartB) // node
+
 	channelID := fmt.Sprintf("%v:%v:%v", c.account.AccAddress().String(), channel_st.PartB, c.denom)
 	secret, hashcode := c.GenerateHashcode(channelID)
 
@@ -517,9 +532,7 @@ func (c *MachineClient) openChannel() error {
 		log.Println(err)
 	}
 
-	log.Println("res ConfirmOpenChannel...")
-	log.Println("TxHash;", resConfirm.TxHash)
-	log.Println("Code;", resConfirm.Code)
+	log.Printf("res ConfirmOpenChannel...txhash %v, code %v", resConfirm.TxHash, resConfirm.Code)
 
 	return nil
 }
@@ -538,9 +551,22 @@ func main() {
 
 	c.Init(stream)
 
-	c.openChannel()
-
 	go eventHandler(c)
+
+	err = c.openChannel()
+	if err != nil {
+		log.Fatalf("Openchannel error: %v", err)
+	}
+
+	//time.Sleep(30 * time.Second)
+	//// SECTION: test broadcast a commitment
+	//log.Println("Commitment to broadcast:", comm_map[pre_commid])
+	//res, err := utils.BuildAndBroadCastCommiment(c.rpcClient, &channel_st, comm_map[pre_commid])
+	//if err != nil && res.Code != 0 {
+	//	log.Fatalf("BuildAndBroadCastCommiment txhash %v failed with code: %v", res.TxHash, res.Code)
+	//} else {
+	//	log.Printf("BuildAndBroadCastCommiment txhash %v with code: %v", res.TxHash, res.Code)
+	//}
 
 	<-waitc
 	log.Println("Client close... ")

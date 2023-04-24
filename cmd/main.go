@@ -8,7 +8,7 @@ import (
 )
 
 // // Server Variable
-var machine *node.Node
+var paymentnode *node.Node
 
 // // Init Function
 func init() {
@@ -18,5 +18,5 @@ func init() {
 func main() {
 	// Starting Seoser
 
-	machine.Start(os.Args)
+	paymentnode.Start(os.Args)
 }
