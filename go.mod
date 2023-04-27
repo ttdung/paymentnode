@@ -3,10 +3,11 @@ module github.com/dungtt-astra/paymentnode
 go 1.18
 
 require (
-	github.com/AstraProtocol/channel v0.0.8
 	github.com/cosmos/cosmos-sdk v0.45.11
 	github.com/dungtt-astra/astra-go-sdk v0.0.9
+	github.com/dungtt-astra/channel v0.0.3
 	github.com/evmos/ethermint v0.19.3
+	github.com/pkg/errors v0.9.1
 	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.28.2-0.20220831092852-f930b1dc76e8
 )
@@ -23,6 +24,7 @@ require (
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.1 // indirect
+	github.com/AstraProtocol/channel v0.0.8 // indirect
 	github.com/ChainSafe/go-schnorrkel v0.0.0-20200405005733-88cbf1b4c40d // indirect
 	github.com/Microsoft/go-winio v0.6.0 // indirect
 	github.com/Microsoft/hcsshim v0.9.4 // indirect
@@ -151,7 +153,6 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
 	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.12.2 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
@@ -213,4 +214,7 @@ require (
 	nhooyr.io/websocket v1.8.6 // indirect
 )
 
-replace github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.3-alpha.regen.1
+replace  github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.3-alpha.regen.1
+replace github.com/dungtt-astra/astra-go-sdk =>  /Users/dungtran/stella/sourcecode/astra-go-sdk
+replace github.com/dungtt-astra/channel =>  /Users/dungtran/stella/sourcecode/channel
+

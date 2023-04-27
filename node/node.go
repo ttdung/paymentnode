@@ -5,27 +5,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/AstraProtocol/channel/app"
-	channelTypes "github.com/AstraProtocol/channel/x/channel/types"
 	"github.com/cosmos/cosmos-sdk/client"
-	"github.com/cosmos/cosmos-sdk/client/flags"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	authTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/dungtt-astra/astra-go-sdk/account"
+	channelTypes "github.com/dungtt-astra/channel/x/channel/types"
 	"github.com/dungtt-astra/paymentnode/config"
 	"github.com/dungtt-astra/paymentnode/pkg/common"
 	"github.com/dungtt-astra/paymentnode/pkg/user"
 	"github.com/dungtt-astra/paymentnode/pkg/utils"
 	node "github.com/dungtt-astra/paymentnode/proto"
-	"github.com/evmos/ethermint/encoding"
 	"google.golang.org/grpc"
 	"io"
 	"log"
 	"net"
 	"sync"
 )
-
-var TIMELOCK = uint64(100)
 
 var channel_map = make(map[string]*common.Channel_st)
 
@@ -51,13 +45,14 @@ var nonce = uint64(0)
 
 var g_channelid string
 var gas_price = uint64(25)
+var pre_commid string
 
 type Node struct {
 	node.UnimplementedNodeServer
 	//stream      node.Node_ExecuteServer
 	//cn          *channel.Channel
 	//channelInfo data.Msg_Channel
-	rpcClient client.Context
+	rpcClient *client.Context
 	owner     *user.User
 	address   string
 }
@@ -79,7 +74,7 @@ func (n *Node) Start(args []string) {
 	//	Tcp:           "tcp",
 	//}
 
-	var cfg = config.Config{
+	var cfg = &config.Config{
 		ChainId:       "testchain",
 		Endpoint:      "http://localhost:26657",
 		CoinType:      common.COINTYPE,
@@ -107,7 +102,7 @@ func (n *Node) Start(args []string) {
 	// create grpc server
 	s := grpc.NewServer()
 	node.RegisterNodeServer(s, &Node{
-		rpcClient: NewRpcClient(cfg),
+		rpcClient: utils.NewRpcClient(cfg),
 		owner:     owner,
 		address:   address,
 	})
@@ -116,46 +111,6 @@ func (n *Node) Start(args []string) {
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
-}
-
-func NewRpcClient(cfg config.Config) client.Context {
-
-	sdkConfig := sdk.GetConfig()
-	sdkConfig.SetPurpose(44)
-	sdkConfig.SetCoinType(cfg.CoinType) // Todo
-
-	bech32PrefixAccAddr := fmt.Sprintf("%v", cfg.PrefixAddress)
-	bech32PrefixAccPub := fmt.Sprintf("%vpub", cfg.PrefixAddress)
-	bech32PrefixValAddr := fmt.Sprintf("%vvaloper", cfg.PrefixAddress)
-	bech32PrefixValPub := fmt.Sprintf("%vvaloperpub", cfg.PrefixAddress)
-	bech32PrefixConsAddr := fmt.Sprintf("%vvalcons", cfg.PrefixAddress)
-	bech32PrefixConsPub := fmt.Sprintf("%vvalconspub", cfg.PrefixAddress)
-
-	sdkConfig.SetBech32PrefixForAccount(bech32PrefixAccAddr, bech32PrefixAccPub)
-	sdkConfig.SetBech32PrefixForValidator(bech32PrefixValAddr, bech32PrefixValPub)
-	sdkConfig.SetBech32PrefixForConsensusNode(bech32PrefixConsAddr, bech32PrefixConsPub)
-
-	rpcClient := client.Context{}
-	encodingConfig := encoding.MakeConfig(app.ModuleBasics)
-
-	rpcHttp, err := client.NewClientFromNode(cfg.Endpoint)
-	if err != nil {
-		panic(err)
-	}
-
-	rpcClient = rpcClient.
-		WithClient(rpcHttp).
-		//WithNodeURI(cfg.Endpoint).
-		WithCodec(encodingConfig.Marshaler).
-		WithInterfaceRegistry(encodingConfig.InterfaceRegistry).
-		WithTxConfig(encodingConfig.TxConfig).
-		WithLegacyAmino(encodingConfig.Amino).
-		WithChainID(cfg.ChainId).
-		WithAccountRetriever(authTypes.AccountRetriever{}).
-		WithBroadcastMode(flags.BroadcastSync).
-		WithTxConfig(encodingConfig.TxConfig)
-
-	return rpcClient
 }
 
 func (n *Node) isThisNode(addr string) bool {
@@ -200,7 +155,7 @@ func (n *Node) doReplyOpenChannel(req *node.MsgReqOpenChannel, cn *common.Channe
 		ChannelID:   channelID,
 		Denom:       req.Denom,
 		BalanceA:    float64(req.Deposit_Amt + req.FirstRecv - req.FirstSend),
-		BalanceB:    n.owner.Deposit_Amt - float64(req.FirstRecv+req.FirstSend),
+		BalanceB:    n.owner.Deposit_Amt - float64(req.FirstRecv) + float64(req.FirstSend),
 		HashcodeA:   req.Hashcode,
 		HashcodeB:   hashcode,
 		SecretA:     "",
@@ -211,7 +166,7 @@ func (n *Node) doReplyOpenChannel(req *node.MsgReqOpenChannel, cn *common.Channe
 		Nonce:       com_nonce,
 	}
 
-	log.Println("comm:", comm)
+	//log.Println("comm:", comm)
 	g_channelid = channelID
 	balance_map[channelID] = Balance{
 		comm.BalanceA,
@@ -223,13 +178,17 @@ func (n *Node) doReplyOpenChannel(req *node.MsgReqOpenChannel, cn *common.Channe
 	//balance_map[channelID].secret = secret
 	//balance_map[channelID].preSecret = secret
 
-	_, str_sig, err := utils.BuildAndSignCommitmentMsg(n.rpcClient, n.owner.Account, &comm, cn)
+	_, str_sig, err := utils.BuildAndSignCommitmentMsgPartB(n.rpcClient, n.owner.Account, &comm, cn)
 	if err != nil {
 		return nil, err
 	}
 
+	//log.Println("First commitment msg:", ocmsg)
+	//log.Println("Commitment Sig:", str_sig)
+
 	comm.StrSigB = str_sig
 	commitment_map[commitID] = &comm
+	pre_commid = commitID
 
 	res := &node.MsgResOpenChannel{
 		Pubkey:         cn.PubkeyB.String(),
@@ -266,7 +225,7 @@ func (n *Node) parseToChannelSt(req *node.MsgReqOpenChannel) (*common.Channel_st
 		Denom:           req.Denom,
 		Amount_partA:    float64(req.Deposit_Amt),
 		Amount_partB:    n.owner.Deposit_Amt,
-		Timelock:        uint64(TIMELOCK),
+		Timelock:        uint64(common.TIMELOCK),
 	}
 	return chann, nil
 }
@@ -336,7 +295,24 @@ func (n *Node) handleConfirmOpenChannel(msg *node.MsgConfirmOpenChannel) (*sdk.T
 		return nil, errors.New("Client reject openchannel")
 	}
 
+	commitment_map[pre_commid].StrSigA = msg.GetCommitmentSig()
+	comm := commitment_map[pre_commid]
 	chann := channel_map[msg.ChannelID]
+
+	// broadcast commitment
+	txbyte, err := utils.PartBBuildFullCommiment(n.rpcClient, n.owner.Account, chann, comm)
+	if err != nil {
+		log.Println("PartBBuildFullCommiment er:", err.Error())
+	}
+
+	commitment_map[pre_commid].TxByteForBroadcast = txbyte
+
+	//res1, err := n.rpcClient.BroadcastTx(txbyte)
+	//if err != nil {
+	//	log.Printf("\nNode broadcast commit failed %v code %v", res1.TxHash, res1.Code)
+	//} else {
+	//	log.Printf("\nNode broadcast commit  %v code %v", res1.TxHash, res1.Code)
+	//}
 
 	openChannelRequest, partBsig, err := utils.BuildAndSignOpenChannelMsg(n.rpcClient, n.owner.Account, chann)
 	if err != nil {
@@ -363,7 +339,7 @@ func (n *Node) validateConfirmOpenChannel(msg *node.MsgConfirmOpenChannel) error
 
 func (n *Node) ConfirmOpenChannel(ctx context.Context, msg *node.MsgConfirmOpenChannel) (*node.MsgResConfirmOpenChannel, error) {
 
-	log.Println("ConfirmOpenChannel receive:", msg)
+	log.Println("ConfirmOpenChannel receive...") //, msg)
 
 	if err := n.validateConfirmOpenChannel(msg); err != nil {
 		return nil, err
@@ -427,7 +403,7 @@ func (n *Node) NotifyPayment(channelID string) error {
 		SecretB:     secret,
 		PenaltyA_Tx: "",
 		PenaltyB_Tx: "",
-		Timelock:    TIMELOCK,
+		Timelock:    uint64(common.TIMELOCK),
 		Nonce:       tnonce,
 	}
 
@@ -477,7 +453,7 @@ func (n *Node) RequestPayment(ctx context.Context, msg *node.MsgReqPayment) (*no
 	comm.HashcodeA = msg.Hashcode
 	commitment_map[msg.CommitmentID] = comm
 
-	_, com_sig, err := utils.BuildAndSignCommitmentMsg(n.rpcClient, n.owner.Account, comm, channel_map[msg.ChannelID])
+	_, com_sig, err := utils.BuildAndSignCommitmentMsgPartB(n.rpcClient, n.owner.Account, comm, channel_map[msg.ChannelID])
 	if err != nil {
 		return nil, err
 	}

@@ -441,6 +441,8 @@ github.com/dop251/goja v0.0.0-20220405120441-9037c2b61cbf/go.mod h1:R9ET47fwRVRP
 github.com/dop251/goja_nodejs v0.0.0-20210225215109-d91c329300e7/go.mod h1:hn7BA7c8pLvoGndExHudxTDKZ84Pyvv+90pbBjbTz0Y=
 github.com/dungtt-astra/astra-go-sdk v0.0.9 h1:FNctwqMLZML/sm9j/Mmj0s/a9WVLloX7bg6dD9jjGQI=
 github.com/dungtt-astra/astra-go-sdk v0.0.9/go.mod h1:m8Y0kcJDG5arNVs+b41nD84CXFIjAs5+/F+Gt2/svsA=
+github.com/dungtt-astra/channel v0.0.3 h1:0h+ezcoqklFGnOLupxQZe8Cy8w7Z3YJXo9MYZRZgQq0=
+github.com/dungtt-astra/channel v0.0.3/go.mod h1:kcpVTThl24AP+xHFNgHBSUYLjfwSSL3gMl4T+XORlo8=
 github.com/dustin/go-humanize v0.0.0-20171111073723-bb3d318650d4/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/dustin/go-humanize v1.0.1-0.20200219035652-afde56e7acac h1:opbrjaN/L8gg6Xh5D04Tem+8xVcz6ajZlGCs49mQgyg=

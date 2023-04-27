@@ -7,20 +7,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	channelTypes "github.com/AstraProtocol/channel/x/channel/types"
 	"github.com/cosmos/cosmos-sdk/client"
-	"github.com/cosmos/cosmos-sdk/client/flags"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	authTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/dungtt-astra/astra-go-sdk/account"
-	"github.com/dungtt-astra/astra-go-sdk/channel"
 	"github.com/dungtt-astra/paymentnode/config"
 	"github.com/dungtt-astra/paymentnode/pkg/common"
 	"github.com/dungtt-astra/paymentnode/pkg/utils"
 	node "github.com/dungtt-astra/paymentnode/proto"
-	"github.com/evmos/ethermint/app"
-	"github.com/evmos/ethermint/encoding"
-	ethermintTypes "github.com/evmos/ethermint/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"io"
@@ -32,17 +24,6 @@ var (
 	serverAddr = flag.String("server_addr", "localhost:50005", "The server address in the format of host:port")
 )
 
-//	type MachineClient struct {
-//		//machine.UnimplementedMachineClient
-//		stream    machine.Machine_ExecuteClient
-//		account   *account.PrivateKeySerialized
-//		denom     string
-//		amount    int64
-//		version   string
-//		channel   data.Msg_Channel
-//		cn        *channel.Channel
-//		rpcClient client.Context
-//	}
 type Balance struct {
 	partA float64
 	partB float64
@@ -69,7 +50,7 @@ type MachineClient struct {
 	amount  int64
 	version string
 	//channel   data.Msg_Channel
-	rpcClient client.Context
+	rpcClient *client.Context
 	client    node.NodeClient
 	passcode  string
 	timelock  uint64
@@ -89,9 +70,11 @@ var cfg = &config.Config{
 	CoinType:      common.COINTYPE,
 	PrefixAddress: "cosmos",
 	TokenSymbol:   "stake",
+	//NodeAddr:      ":50006",
+	//Tcp:           "tcp",
 }
 
-func (c *MachineClient) Init(stream node.Node_OpenStreamClient) {
+func (c *MachineClient) MyInit(stream node.Node_OpenStreamClient) {
 
 	c.passcode = "secret string"
 	c.stream = stream
@@ -99,27 +82,12 @@ func (c *MachineClient) Init(stream node.Node_OpenStreamClient) {
 	c.denom = "stake"
 	c.amount = 0
 	c.version = "0.1"
-	c.timelock = 100
+	c.timelock = uint64(common.TIMELOCK)
 
 	// channel
 	channel_st.PartB = "cosmos164xgenflr89l5q3q20e342z4ezpvyutlygaayf"
 
-	// set astra address
-	sdkConfig := sdk.GetConfig()
-	sdkConfig.SetPurpose(44)
-	//sdkConfig.SetCoinType(ethermintTypes.Bip44CoinType)
-	sdkConfig.SetCoinType(ethermintTypes.Bip44CoinType)
-
-	bech32PrefixAccAddr := fmt.Sprintf("%v", cfg.PrefixAddress)
-	bech32PrefixAccPub := fmt.Sprintf("%vpub", cfg.PrefixAddress)
-	bech32PrefixValAddr := fmt.Sprintf("%vvaloper", cfg.PrefixAddress)
-	bech32PrefixValPub := fmt.Sprintf("%vvaloperpub", cfg.PrefixAddress)
-	bech32PrefixConsAddr := fmt.Sprintf("%vvalcons", cfg.PrefixAddress)
-	bech32PrefixConsPub := fmt.Sprintf("%vvalconspub", cfg.PrefixAddress)
-
-	sdkConfig.SetBech32PrefixForAccount(bech32PrefixAccAddr, bech32PrefixAccPub)
-	sdkConfig.SetBech32PrefixForValidator(bech32PrefixValAddr, bech32PrefixValPub)
-	sdkConfig.SetBech32PrefixForConsensusNode(bech32PrefixConsAddr, bech32PrefixConsPub)
+	c.rpcClient = utils.NewRpcClient(cfg)
 
 	acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonic)
 	if err != nil {
@@ -129,27 +97,10 @@ func (c *MachineClient) Init(stream node.Node_OpenStreamClient) {
 
 	c.account = acc
 
-	//
-	rpcClient := client.Context{}
-	encodingConfig := encoding.MakeConfig(app.ModuleBasics)
+}
 
-	rpcHttp, err := client.NewClientFromNode(cfg.Endpoint)
-	if err != nil {
-		panic(err)
-	}
-
-	c.rpcClient = rpcClient.
-		WithClient(rpcHttp).
-		//WithNodeURI(c.endpoint).
-		WithCodec(encodingConfig.Marshaler).
-		WithInterfaceRegistry(encodingConfig.InterfaceRegistry).
-		WithTxConfig(encodingConfig.TxConfig).
-		WithLegacyAmino(encodingConfig.Amino).
-		WithChainID(cfg.ChainId).
-		WithAccountRetriever(authTypes.AccountRetriever{}).
-		WithBroadcastMode(flags.BroadcastSync).
-		WithTxConfig(encodingConfig.TxConfig)
-
+func (c *MachineClient) GetAccount() *account.PrivateKeySerialized {
+	return c.account
 }
 
 func connect(serverAddr *string) (node.NodeClient, node.Node_OpenStreamClient, *grpc.ClientConn, error) {
@@ -294,11 +245,13 @@ func (c *MachineClient) buildCommitmentInfo(req *node.MsgReqOpenChannel, res *no
 		ChannelID:   fmt.Sprintf("%v:%v:%v", req.PartA_Addr, req.PartB_Addr, req.Denom),
 		Denom:       req.Denom,
 		BalanceA:    float64(req.Deposit_Amt + req.FirstRecv - req.FirstSend),
-		BalanceB:    float64(res.Deposit_Amt - req.FirstRecv),
+		BalanceB:    float64(res.Deposit_Amt - req.FirstRecv + req.FirstSend),
 		HashcodeA:   req.Hashcode,
 		HashcodeB:   res.Hashcode,
 		SecretA:     secret,
 		SecretB:     "",
+		StrSigA:     "",
+		StrSigB:     res.Commitment_Sig,
 		PenaltyA_Tx: "",
 		PenaltyB_Tx: "",
 		Timelock:    c.timelock,
@@ -308,75 +261,6 @@ func (c *MachineClient) buildCommitmentInfo(req *node.MsgReqOpenChannel, res *no
 	return com
 }
 
-func (c *MachineClient) buildAndSignCommitmentMsg(com *common.Commitment_st, chann *common.Channel_st) (string, error) {
-
-	msg := channelTypes.MsgCommitment{
-		Creator: chann.Multisig_Addr,
-		From:    chann.PartA,
-		CoinToCreator: &sdk.Coin{
-			Denom:  chann.Denom,
-			Amount: sdk.NewInt(int64(com.BalanceA)),
-		},
-		ToTimelockAddr: chann.PartB, //peer node
-		Timelock:       100,
-		ToHashlockAddr: chann.PartA,
-		Hashcode:       com.HashcodeB,
-		CoinToHtlc: &sdk.Coin{
-			Denom:  chann.Denom,
-			Amount: sdk.NewInt(int64(com.BalanceB)),
-		},
-		ChannelID: chann.Index,
-	}
-
-	openChannelRequest := channel.SignMsgRequest{
-		Msg:      &msg,
-		GasLimit: 200000,
-		GasPrice: "0stake",
-	}
-	//fmt.Println("openChannelRequest:", openChannelRequest)
-
-	strSig, err := channel.NewChannel(c.rpcClient).SignMultisigMsg(openChannelRequest, c.account, chann.Multisig_Pubkey)
-	if err != nil {
-		log.Printf("SignMultisigTxFromOneAccount error: %v\n", err)
-		return "", err
-	}
-
-	return strSig, nil
-}
-
-func (c *MachineClient) buildAndSignOpenChannelMsg(com *common.Commitment_st, chann *common.Channel_st) (string, error) {
-	msg := channelTypes.MsgOpenChannel{
-		Creator: chann.Multisig_Addr,
-		PartA:   chann.PartA,
-		PartB:   chann.PartB,
-		CoinA: &sdk.Coin{
-			Denom:  chann.Denom,
-			Amount: sdk.NewInt(int64(chann.Amount_partA)),
-		},
-		CoinB: &sdk.Coin{
-			Denom:  chann.Denom,
-			Amount: sdk.NewInt(int64(chann.Amount_partB)),
-		},
-		MultisigAddr: chann.Multisig_Addr,
-	}
-
-	openChannelRequest := channel.SignMsgRequest{
-		Msg:      &msg,
-		GasLimit: 200000,
-		GasPrice: "0stake",
-	}
-	//fmt.Println("openChannelRequest:", openChannelRequest)
-
-	strSig, err := channel.NewChannel(c.rpcClient).SignMultisigMsg(openChannelRequest, c.account, chann.Multisig_Pubkey)
-	if err != nil {
-		log.Printf("SignMultisigTxFromOneAccount error: %v\n", err)
-		return "", err
-	}
-
-	log.Println("Alice OC strSig:", strSig)
-	return strSig, nil
-}
-
 func (c *MachineClient) buildConfirmMsg(com *common.Commitment_st, channinfo *common.Channel_st) *node.MsgConfirmOpenChannel {
 
 	msg := &node.MsgConfirmOpenChannel{
@@ -384,7 +268,7 @@ func (c *MachineClient) buildConfirmMsg(com *common.Commitment_st, channinfo *co
 	}
 
 	// build commitment msg
-	_, com_sig, err := utils.BuildAndSignCommitmentMsg(c.rpcClient, c.account, com, channinfo)
+	_, com_sig, err := utils.BuildAndSignCommitmentMsgPartA(c.rpcClient, c.account, com, channinfo)
 	if err != nil {
 		msg.Type = node.MsgType_ERROR
 		msg.CommitmentSig = err.Error()
@@ -392,14 +276,12 @@ func (c *MachineClient) buildConfirmMsg(com *common.Commitment_st, channinfo *co
 	}
 
 	// bụild openchannel tx msg
-	msgopen, openchannel_sig, err := utils.BuildAndSignOpenChannelMsg(c.rpcClient, c.account, channinfo)
+	_, openchannel_sig, err := utils.BuildAndSignOpenChannelMsg(c.rpcClient, c.account, channinfo)
 	if err != nil {
 		msg.Type = node.MsgType_ERROR
 		msg.CommitmentSig = err.Error()
 		return msg
 	}
-	log.Println("MsgOpen: ", msgopen)
-	log.Println("Sig MsgOpen: ", openchannel_sig)
 
 	msg.ChannelID = channinfo.Index
 	msg.CommitmentSig = com_sig
@@ -433,7 +315,7 @@ func (c *MachineClient) makePayment(rp NotifReqPaymentSt) error {
 
 	// build commitment msg
 	//log.Println("makePayment:", channel_st)
-	_, com_sig, err := utils.BuildAndSignCommitmentMsg(c.rpcClient, c.account, com, &channel_st)
+	_, com_sig, err := utils.BuildAndSignCommitmentMsgPartA(c.rpcClient, c.account, com, &channel_st)
 	if err != nil {
 		return err
 	}
@@ -521,10 +403,25 @@ func (c *MachineClient) openChannel() error {
 
 	// todo build confirm Msg
 
-	log.Println("openChannel... channel_st:")
-	log.Println(channel_st)
+	//log.Println("openChannel... channel_st:")
+	//log.Println(channel_st)
 
 	confirmMsg := c.buildConfirmMsg(cominfo, &channel_st)
+	comm_map[comid].StrSigA = confirmMsg.CommitmentSig
+
+	txbyte, err := utils.PartABuildFullCommiment(c.rpcClient, c.GetAccount(), &channel_st, comm_map[comid])
+	if err != nil {
+		log.Println(err)
+	}
+
+	comm_map[comid].TxByteForBroadcast = txbyte
+
+	res1, err := c.rpcClient.BroadcastTx(txbyte)
+	if err != nil {
+		log.Printf("\nBroadcast commit failed %v code %v", res1.TxHash, res1.Code)
+	} else {
+		log.Printf("\nBroadcast commit ok  %v code %v", res1.TxHash, res1.Code)
+	}
 
 	log.Println("ConfirmOpenChannel ...")
 	resConfirm, err := c.client.ConfirmOpenChannel(context.Background(), confirmMsg)
@@ -549,7 +446,7 @@ func main() {
 	c := new(MachineClient)
 	c.client = client
 
-	c.Init(stream)
+	c.MyInit(stream)
 
 	go eventHandler(c)
 
@@ -558,14 +455,15 @@ func main() {
 		log.Fatalf("Openchannel error: %v", err)
 	}
 
-	//time.Sleep(30 * time.Second)
-	//// SECTION: test broadcast a commitment
+	time.Sleep(30 * time.Second)
+	// SECTION: test broadcast a commitment
 	//log.Println("Commitment to broadcast:", comm_map[pre_commid])
-	//res, err := utils.BuildAndBroadCastCommiment(c.rpcClient, &channel_st, comm_map[pre_commid])
+
+	//res, err := utils.BroadCastCommiment(c.rpcClient, comm_map[pre_commid])
 	//if err != nil && res.Code != 0 {
-	//	log.Fatalf("BuildAndBroadCastCommiment txhash %v failed with code: %v", res.TxHash, res.Code)
+	//	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", res.TxHash, res.Code)
 	//} else {
-	//	log.Printf("BuildAndBroadCastCommiment txhash %v with code: %v", res.TxHash, res.Code)
+	//	log.Printf("BroadCastCommiment txhash %v with code: %v", res.TxHash, res.Code)
 	//}
 
 	<-waitc
