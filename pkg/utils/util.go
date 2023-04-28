@@ -22,29 +22,30 @@ import (
 
 func NewRpcClient(cfg *config.Config) *client.Context {
 
+	log.Println("Init NewRpcClient() ...")
 	sdkConfig := sdk.GetConfig()
 	sdkConfig.SetPurpose(44)
 	sdkConfig.SetCoinType(cfg.CoinType) // Todo
-
+	fmt.Println("done 1")
 	bech32PrefixAccAddr := fmt.Sprintf("%v", cfg.PrefixAddress)
 	bech32PrefixAccPub := fmt.Sprintf("%vpub", cfg.PrefixAddress)
 	bech32PrefixValAddr := fmt.Sprintf("%vvaloper", cfg.PrefixAddress)
 	bech32PrefixValPub := fmt.Sprintf("%vvaloperpub", cfg.PrefixAddress)
 	bech32PrefixConsAddr := fmt.Sprintf("%vvalcons", cfg.PrefixAddress)
 	bech32PrefixConsPub := fmt.Sprintf("%vvalconspub", cfg.PrefixAddress)
-
+	fmt.Println("done 2")
 	sdkConfig.SetBech32PrefixForAccount(bech32PrefixAccAddr, bech32PrefixAccPub)
 	sdkConfig.SetBech32PrefixForValidator(bech32PrefixValAddr, bech32PrefixValPub)
 	sdkConfig.SetBech32PrefixForConsensusNode(bech32PrefixConsAddr, bech32PrefixConsPub)
 
 	rpcClient := client.Context{}
 	encodingConfig := encoding.MakeConfig(app.ModuleBasics)
-
+	fmt.Println("done 3")
 	rpcHttp, err := client.NewClientFromNode(cfg.Endpoint)
 	if err != nil {
 		panic(err)
 	}
-
+	fmt.Println("done 4")
 	rpcClient = rpcClient.
 		WithClient(rpcHttp).
 		//WithNodeURI(cfg.Endpoint).
@@ -56,7 +57,7 @@ func NewRpcClient(cfg *config.Config) *client.Context {
 		WithAccountRetriever(authTypes.AccountRetriever{}).
 		WithBroadcastMode(flags.BroadcastSync).
 		WithTxConfig(encodingConfig.TxConfig)
-
+	fmt.Println("done 5")
 	return &rpcClient
 }
 

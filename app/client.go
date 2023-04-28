@@ -74,10 +74,12 @@ var cfg = &config.Config{
 	//Tcp:           "tcp",
 }
 
-func (c *MachineClient) MyInit(stream node.Node_OpenStreamClient) {
+func (c *MachineClient) Init() {
+
+	fmt.Println("Start my init")
 
 	c.passcode = "secret string"
-	c.stream = stream
+	//c.stream = stream
 
 	c.denom = "stake"
 	c.amount = 0
@@ -86,8 +88,6 @@ func (c *MachineClient) MyInit(stream node.Node_OpenStreamClient) {
 
 	// channel
 	channel_st.PartB = "cosmos164xgenflr89l5q3q20e342z4ezpvyutlygaayf"
-
-	c.rpcClient = utils.NewRpcClient(cfg)
 
 	acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonic)
 	if err != nil {
@@ -435,18 +435,21 @@ func (c *MachineClient) openChannel() error {
 }
 
 func main() {
-
+	c := new(MachineClient)
+	rpcclient := utils.NewRpcClient(cfg)
+	c.Init()
+	fmt.Println("My init done")
 	client, stream, conn, err := connect(serverAddr)
 
 	if err != nil {
 		log.Printf("Err: %v", err)
 		return
 	}
+	fmt.Println("Connect server done")
 
-	c := new(MachineClient)
+	c.stream = stream
 	c.client = client
-
-	c.MyInit(stream)
+	c.rpcClient = rpcclient
 
 	go eventHandler(c)
 
