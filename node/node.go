@@ -279,6 +279,8 @@ func (n *Node) validateRequestOpenChannel(req *node.MsgReqOpenChannel) error {
 
 func (n *Node) RequestOpenChannel(ctx context.Context, req *node.MsgReqOpenChannel) (*node.MsgResOpenChannel, error) {
 
+	log.Println("RequestOpenChannel received...")
+	log.Println("RequestOpenChannel:", req)
 	err := n.validateRequestOpenChannel(req)
 	if err != nil {
 		return nil, err
@@ -307,23 +309,16 @@ func (n *Node) handleConfirmOpenChannel(msg *node.MsgConfirmOpenChannel) (*sdk.T
 
 	commitment_map[pre_commid].TxByteForBroadcast = txbyte
 
-	//res1, err := n.rpcClient.BroadcastTx(txbyte)
-	//if err != nil {
-	//	log.Printf("\nNode broadcast commit failed %v code %v", res1.TxHash, res1.Code)
-	//} else {
-	//	log.Printf("\nNode broadcast commit  %v code %v", res1.TxHash, res1.Code)
-	//}
-
 	openChannelRequest, partBsig, err := utils.BuildAndSignOpenChannelMsg(n.rpcClient, n.owner.Account, chann)
 	if err != nil {
 		return nil, err
 	}
-	log.Println("openChannelRequest:", openChannelRequest)
-	log.Println("PartB OC sig:", partBsig)
+	//log.Println("openChannelRequest:", openChannelRequest)
+	//log.Println("PartB OC sig:", partBsig)
 
 	txResponse, err := utils.BuildAndBroadCastMultisigMsg(n.rpcClient, chann.Multisig_Pubkey, msg.OpenChannelTxSig, partBsig, openChannelRequest)
 	if err != nil {
-		log.Printf("BuildAndBroadCastMultisigMsg Err: %v", err.Error())
+		log.Printf("handleConfirmOpenChannel:BuildAndBroadCastMultisigMsg Err: %v", err.Error())
 		return nil, err
 	}
 

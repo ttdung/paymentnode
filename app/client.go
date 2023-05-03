@@ -70,32 +70,47 @@ var cfg = &config.Config{
 	CoinType:      common.COINTYPE,
 	PrefixAddress: "cosmos",
 	TokenSymbol:   "stake",
-	//NodeAddr:      ":50006",
-	//Tcp:           "tcp",
+}
+
+func NewMachineClient(stream node.Node_OpenStreamClient,
+	client node.NodeClient,
+	account *account.PrivateKeySerialized) *MachineClient {
+
+	return &MachineClient{
+		stream,
+		account,
+		"stake",
+		0,
+		"0.1",
+		utils.NewRpcClient(cfg),
+		client,
+		"secret string",
+		uint64(common.TIMELOCK),
+	}
 }
 
 func (c *MachineClient) Init() {
 
-	fmt.Println("Start my init")
-
-	c.passcode = "secret string"
-	//c.stream = stream
-
-	c.denom = "stake"
-	c.amount = 0
-	c.version = "0.1"
-	c.timelock = uint64(common.TIMELOCK)
+	//fmt.Println("Start my init")
+	//
+	//c.passcode = "secret string"
+	////c.stream = stream
+	//
+	//c.denom = "stake"
+	//c.amount = 0
+	//c.version = "0.1"
+	//c.timelock = uint64(common.TIMELOCK)
 
 	// channel
 	channel_st.PartB = "cosmos164xgenflr89l5q3q20e342z4ezpvyutlygaayf"
 
-	acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonic)
-	if err != nil {
-		log.Println("ImportAccount Err:", err.Error())
-		return
-	}
-
-	c.account = acc
+	//acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonic)
+	//if err != nil {
+	//	log.Println("ImportAccount Err:", err.Error())
+	//	return
+	//}
+	//
+	//c.account = acc
 
 }
 
@@ -380,6 +395,7 @@ func (c *MachineClient) openChannel() error {
 	}
 
 	log.Println("RequestOpenChannel ...")
+	log.Println("RequestOpenChannel ...:", req)
 	res, err := c.client.RequestOpenChannel(context.Background(), req)
 	if err != nil {
 		log.Println(err)
@@ -411,17 +427,17 @@ func (c *MachineClient) openChannel() error {
 
 	txbyte, err := utils.PartABuildFullCommiment(c.rpcClient, c.GetAccount(), &channel_st, comm_map[comid])
 	if err != nil {
-		log.Println(err)
+		panic(err)
 	}
 
 	comm_map[comid].TxByteForBroadcast = txbyte
 
-	res1, err := c.rpcClient.BroadcastTx(txbyte)
-	if err != nil {
-		log.Printf("\nBroadcast commit failed %v code %v", res1.TxHash, res1.Code)
-	} else {
-		log.Printf("\nBroadcast commit ok  %v code %v", res1.TxHash, res1.Code)
-	}
+	//res1, err := c.rpcClient.BroadcastTx(txbyte)
+	//if err != nil {
+	//	log.Printf("\nBroadcast commit failed %v code %v", res1.TxHash, res1.Code)
+	//} else {
+	//	log.Printf("\nBroadcast commit ok  %v code %v", res1.TxHash, res1.Code)
+	//}
 
 	log.Println("ConfirmOpenChannel ...")
 	resConfirm, err := c.client.ConfirmOpenChannel(context.Background(), confirmMsg)
@@ -435,10 +451,13 @@ func (c *MachineClient) openChannel() error {
 }
 
 func main() {
-	c := new(MachineClient)
-	rpcclient := utils.NewRpcClient(cfg)
-	c.Init()
-	fmt.Println("My init done")
+
+	acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonic)
+	if err != nil {
+		log.Println("ImportAccount Err:", err.Error())
+		return
+	}
+
 	client, stream, conn, err := connect(serverAddr)
 
 	if err != nil {
@@ -447,9 +466,9 @@ func main() {
 	}
 	fmt.Println("Connect server done")
 
-	c.stream = stream
-	c.client = client
-	c.rpcClient = rpcclient
+	c := NewMachineClient(stream, client, acc)
+
+	c.Init()
 
 	go eventHandler(c)
 
@@ -458,16 +477,30 @@ func main() {
 		log.Fatalf("Openchannel error: %v", err)
 	}
 
+	log.Println("Sleep 30s..")
 	time.Sleep(30 * time.Second)
+	log.Println("Start broadcast commiment..")
 	// SECTION: test broadcast a commitment
 	//log.Println("Commitment to broadcast:", comm_map[pre_commid])
 
-	//res, err := utils.BroadCastCommiment(c.rpcClient, comm_map[pre_commid])
+	res, err := utils.BroadCastCommiment(*c.rpcClient, comm_map[pre_commid])
+	log.Println("BroadCastCommiment res:", res)
 	//if err != nil && res.Code != 0 {
 	//	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", res.TxHash, res.Code)
 	//} else {
 	//	log.Printf("BroadCastCommiment txhash %v with code: %v", res.TxHash, res.Code)
 	//}
+
+	// withdraw timelock
+	log.Println("Sleep 40s..")
+	time.Sleep(40 * time.Second)
+	log.Println("Start withdraw timelock..")
+	res1, txhash, err := utils.BuildAndBroadcastWithdrawTimeLockPartA(c.rpcClient, c.account, comm_map[pre_commid], &channel_st)
+	if err != nil {
+		log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
+	} else {
+		log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
+	}
 
 	<-waitc
 	log.Println("Client close... ")

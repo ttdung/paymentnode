@@ -37,8 +37,8 @@ type Commitment_st struct {
 }
 
 const (
-	COINTYPE = uint32(1) // test type for this project
-	TIMELOCK = uint32(3)
+	COINTYPE = uint32(118) // test type for this project
+	TIMELOCK = uint32(1)
 )
 
 //const COINTYPE = ethermintTypes.Bip44CoinType
