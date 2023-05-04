@@ -33,8 +33,12 @@ type Balance struct {
 var balance_map = make(map[string]*Balance)
 
 var mmemonic = "blanket drama finish rally panic wool rich blush document lake friend hole treat random advice minute unique benefit live icon decline put icon vintage"
+mmemonicBob := "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
+var partBAddr = "cosmos1sd73jqkg2d7nfxefnr9psnl7tfxsy3pnltxfa7"
 
-//"skull drastic call search soda fiction benefit route motor tell miracle develop float priority mom run unique tree scrub intact visual club file hundred"
+//var partBAddr = "cosmos164xgenflr89l5q3q20e342z4ezpvyutlygaayf"
+//var mmemonic = "draft eight argue sibling burden decade loop force walnut follow tunnel blossom elevator tank mutual hamster accident same primary year key loop doll keep"
+//var mmemonicBob = "opera buyer enact elbow taxi blur clap swap rigid loud paper planet use shrug core tell device silent stomach stage green have monkey evolve"
 
 var waitc = make(chan struct{})
 
@@ -103,7 +107,7 @@ func (c *MachineClient) Init() {
 	//c.timelock = uint64(common.TIMELOCK)
 
 	// channel
-	channel_st.PartB = "cosmos1sd73jqkg2d7nfxefnr9psnl7tfxsy3pnltxfa7"
+	channel_st.PartB = partBAddr
 
 	//acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonic)
 	//if err != nil {
@@ -374,7 +378,6 @@ func (c *MachineClient) openChannel() error {
 	//log.Println("PartA addr:", c.account.AccAddress().String()) //client
 	//log.Println("PartB addr:", channel_st.PartB) // node
 
-	mmemonicBob := "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
 	accBob, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonicBob)
 	if err != nil {
 		log.Println("ImportAccount Err:", err.Error())
@@ -484,13 +487,11 @@ func main() {
 
 	c := NewMachineClient(stream, client, acc)
 
-	mmemonicBob := "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
 	accBob, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonicBob)
 	if err != nil {
 		log.Println("ImportAccount Err:", err.Error())
 		return
 	}
-	cBob := NewMachineClient(stream, client, accBob)
 
 	c.Init()
 
@@ -503,6 +504,9 @@ func main() {
 
 	log.Println("Sleep 30s..")
 	time.Sleep(30 * time.Second)
+	///////////////////////////////////////////////////
+	//  SENDER COMMITMENT
+	///////////////////////////////////////////////////
 
 	var comm = &common.SenderCommitment_st{
 		ChannelID:          comm_map[pre_commid].ChannelID,
@@ -524,24 +528,44 @@ func main() {
 		Nonce:              comm_map[pre_commid].Nonce,
 	}
 
-	scommA, strsig1, err := utils.BuildAndSignSenderCommitment(c.rpcClient, c.account, comm, &channel_st)
+	// PART A create and sign Sender Commitment
+	_, strsig1, err := utils.BuildAndSignSenderCommitment(c.rpcClient, c.account, comm, &channel_st)
 
 	if err != nil {
 		log.Println("BuildAndSignSenderCommitment err:", err.Error())
 	}
 
-	log.Println("SenderCommitA:", scommA)
-	log.Println("Signature1:", strsig1)
+	//log.Println("SenderCommitA:", scommA)
+	//log.Println("Signature1:", strsig1)
 
-	scommB, strsig2, err := utils.BuildAndSignSenderCommitment(c.rpcClient, cBob.account, comm, &channel_st)
+	// PART B creates and sign Sender Commitment
+	scommB, strsig2, err := utils.BuildAndSignSenderCommitment(c.rpcClient, accBob, comm, &channel_st)
 
 	if err != nil {
 		log.Println("BuildAndSignSenderCommitment err:", err.Error())
 	}
 
-	log.Println("SenderCommitB:", scommB)
-	log.Println("Signature2:", strsig2)
+	// Build & broadcast Sender Commitment
+	log.Println("Start broadcast sender commiment..")
+	txbyte, err := utils.BuildMultisigMsgReadyForBroadcast(c.rpcClient, channel_st.Multisig_Pubkey, strsig1, strsig2, scommB)
+	if err != nil {
+		log.Println("BuildCommitmentMsgReadyForBroadcast Err: ", err.Error())
+		return
+	}
 
+	res, err := utils.BroadCastSignedTx(*c.rpcClient, txbyte)
+	//res, err := utils.BuildAndBroadCastMultisigMsg(c.rpcClient, channel_st.Multisig_Pubkey, strsig1, strsig2, scommB)
+	if err != nil {
+		log.Println("BroadCastSignedTx err:", err.Error())
+	}
+	log.Println("BroadCastSignedTx res:", res)
+
+	//log.Println("SenderCommitB:", scommB)
+	//log.Println("Signature2:", strsig2)
+
+	///////////////////////////////////////////////////
+	//  RECEIVE COMMITMENT
+	///////////////////////////////////////////////////
 	//var r_comm = &common.ReceiveCommitment_st{
 	//	ChannelID:          comm.ChannelID,
 	//	Denom:              comm.Denom,
@@ -561,7 +585,7 @@ func main() {
 	//	Timelock:           comm.Timelock,
 	//	Nonce:              comm.Nonce,
 	//}
-	//
+
 	//rcomm, strsig2, err := utils.BuildAndSignReceiveCommitment(c.rpcClient, cBob.account, r_comm, &channel_st)
 	//
 	//if err != nil {
@@ -571,18 +595,18 @@ func main() {
 	//log.Println("ReceiveCommit:", rcomm)
 	//log.Println("Signature:", strsig2)
 
-	log.Println("Start broadcast commiment..")
-	txbyte, err := utils.BuildMultisigMsgReadyForBroadcast(c.rpcClient, channel_st.Multisig_Pubkey, strsig1, strsig2, scommB)
-	if err != nil {
-		log.Println("BuildCommitmentMsgReadyForBroadcast Err: ", err.Error())
-		return
-	}
-	res, err := utils.BroadCastSignedTx(*c.rpcClient, txbyte)
-	//res, err := utils.BuildAndBroadCastMultisigMsg(c.rpcClient, channel_st.Multisig_Pubkey, strsig1, strsig2, scommB)
-	if err != nil {
-		log.Println("BroadCastSignedTx err:", err.Error())
-	}
-	log.Println("BroadCastSignedTx res:", res)
+	//log.Println("Start broadcast sender commiment..")
+	//txbyte, err := utils.BuildMultisigMsgReadyForBroadcast(c.rpcClient, channel_st.Multisig_Pubkey, strsig1, strsig2, scommB)
+	//if err != nil {
+	//	log.Println("BuildCommitmentMsgReadyForBroadcast Err: ", err.Error())
+	//	return
+	//}
+	//res, err := utils.BroadCastSignedTx(*c.rpcClient, txbyte)
+	////res, err := utils.BuildAndBroadCastMultisigMsg(c.rpcClient, channel_st.Multisig_Pubkey, strsig1, strsig2, scommB)
+	//if err != nil {
+	//	log.Println("BroadCastSignedTx err:", err.Error())
+	//}
+	//log.Println("BroadCastSignedTx res:", res)
 
 	//
 	//

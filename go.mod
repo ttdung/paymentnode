@@ -210,3 +210,6 @@ replace github.com/dungtt-astra/astra-go-sdk => /Users/maxminlevel/Code/may3/ast
 
 replace github.com/dungtt-astra/channel => /Users/maxminlevel/Code/may3/channel
 
+//replace github.com/dungtt-astra/astra-go-sdk => /Users/dungtran/stella/sourcecode/astra-go-sdk
+//
+//replace github.com/dungtt-astra/channel => /Users/dungtran/stella/sourcecode/channel

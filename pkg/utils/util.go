@@ -518,7 +518,7 @@ func PartABuildFullCommiment(client *client.Context, acc *account.PrivateKeySeri
 	multiSigPubkey := chann.Multisig_Pubkey
 	//sig1 := comm.StrSigA
 	sig2 := comm.StrSigB
-	//log.Println("Peer Commitment to be signed:: ", msgRequest.Msg)
+	log.Println("PartB Commitment msg: ", msgRequest.Msg)
 	//log.Printf("Sig1 %v sig2 %v", sig1, sig2)
 	return BuildCommitmentMsgReadyForBroadcast(client, multiSigPubkey, sig1, sig2, msgRequest)
 }

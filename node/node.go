@@ -58,13 +58,18 @@ type Node struct {
 	address   string
 }
 
+var mmemonicAlice = "blanket drama finish rally panic wool rich blush document lake friend hole treat random advice minute unique benefit live icon decline put icon vintage"
+
+//var mmemonicAlice = "draft eight argue sibling burden decade loop force walnut follow tunnel blossom elevator tank mutual hamster accident same primary year key loop doll keep"
+
 func (n *Node) Start(args []string) {
 
 	// create listener
 	tcp := "tcp"
 	address := ":50005"
 	tokenSymbol := "stake"
-	var mmemonic = "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
+	//var mmemonic = "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
+	var mmemonic = "opera buyer enact elbow taxi blur clap swap rigid loud paper planet use shrug core tell device silent stomach stage green have monkey evolve"
 	//var cfg = config.Config{
 	//	ChainId:       "astra_11110-1",
 	//	Endpoint:      "http://128.199.238.171:26657",
@@ -145,9 +150,20 @@ func (n *Node) NewCommitment() common.Commitment_st {
 
 func (n *Node) doReplyOpenChannel(req *node.MsgReqOpenChannel, cn *common.Channel_st) (*node.MsgResOpenChannel, error) {
 
+	accAlice, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonicAlice)
+	if err != nil {
+		log.Println("ImportAccount Err:", err.Error())
+		return nil, err
+	}
+
+	multisigAddr, _, err := account.NewAccount(common.COINTYPE).CreateMulSignAccountFromTwoAccount(accAlice.PublicKey(), n.owner.GetPubkey(), 2)
+	if err != nil {
+		return nil, err
+	}
+
 	com_nonce := getNonce()
 
-	channelID := fmt.Sprintf("%v:%v:%v", req.PartA_Addr, req.PartB_Addr, req.Denom)
+	channelID := fmt.Sprintf("%v:%v", multisigAddr, req.Denom)
 	commitID := fmt.Sprintf("%v:%v", channelID, com_nonce)
 
 	secret, hashcode := n.owner.GenerateHashcode(commitID)
@@ -179,12 +195,12 @@ func (n *Node) doReplyOpenChannel(req *node.MsgReqOpenChannel, cn *common.Channe
 	//balance_map[channelID].secret = secret
 	//balance_map[channelID].preSecret = secret
 
-	_, str_sig, err := utils.BuildAndSignCommitmentMsgPartB(n.rpcClient, n.owner.Account, &comm, cn)
+	commitMsgB, str_sig, err := utils.BuildAndSignCommitmentMsgPartB(n.rpcClient, n.owner.Account, &comm, cn)
 	if err != nil {
 		return nil, err
 	}
 
-	//log.Println("First commitment msg:", ocmsg)
+	log.Println("PartB commitment msg:", commitMsgB)
 	//log.Println("Commitment Sig:", str_sig)
 
 	comm.StrSigB = str_sig
@@ -214,7 +230,7 @@ func (n *Node) parseToChannelSt(req *node.MsgReqOpenChannel) (*common.Channel_st
 
 	log.Println("MultisigAddr:", multisigAddr)
 
-	channelID := fmt.Sprintf("%v:%v:%v", req.PartA_Addr, req.PartB_Addr, req.Denom)
+	channelID := fmt.Sprintf("%v:%v", multisigAddr, req.Denom)
 	chann := &common.Channel_st{
 		ChannelID:       channelID,
 		Multisig_Addr:   multisigAddr,
@@ -323,7 +339,8 @@ func (n *Node) handleConfirmOpenChannel(msg *node.MsgConfirmOpenChannel) (*sdk.T
 		return nil, err
 	}
 
-	log.Printf("txhash: %v, code: %v \n", txResponse.TxHash, txResponse.Code)
+	log.Printf("txhash: %v \n, response code : %v \n", txResponse.TxHash, txResponse.Code)
+	//log.Printf("response : %v \n", txResponse)
 
 	return txResponse, nil
 }
