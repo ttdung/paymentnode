@@ -5,6 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"net"
+	"sync"
+
 	"github.com/cosmos/cosmos-sdk/client"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/dungtt-astra/astra-go-sdk/account"
@@ -15,10 +20,6 @@ import (
 	"github.com/dungtt-astra/paymentnode/pkg/utils"
 	node "github.com/dungtt-astra/paymentnode/proto"
 	"google.golang.org/grpc"
-	"io"
-	"log"
-	"net"
-	"sync"
 )
 
 var channel_map = make(map[string]*common.Channel_st)
@@ -63,7 +64,7 @@ func (n *Node) Start(args []string) {
 	tcp := "tcp"
 	address := ":50005"
 	tokenSymbol := "stake"
-	var mmemonic = "opera buyer enact elbow taxi blur clap swap rigid loud paper planet use shrug core tell device silent stomach stage green have monkey evolve"
+	var mmemonic = "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
 	//var cfg = config.Config{
 	//	ChainId:       "astra_11110-1",
 	//	Endpoint:      "http://128.199.238.171:26657",
@@ -215,7 +216,7 @@ func (n *Node) parseToChannelSt(req *node.MsgReqOpenChannel) (*common.Channel_st
 
 	channelID := fmt.Sprintf("%v:%v:%v", req.PartA_Addr, req.PartB_Addr, req.Denom)
 	chann := &common.Channel_st{
-		Index:           channelID,
+		ChannelID:       channelID,
 		Multisig_Addr:   multisigAddr,
 		Multisig_Pubkey: multiSigPubkey,
 		PartA:           req.PartA_Addr,
@@ -238,7 +239,7 @@ func (n *Node) handleRequestOpenChannel(req *node.MsgReqOpenChannel) (*node.MsgR
 	if n.isThisNode(req.PeerNodeAddr) {
 
 		chann, err := n.parseToChannelSt(req)
-		channel_map[chann.Index] = chann
+		channel_map[chann.ChannelID] = chann
 
 		res, err := n.doReplyOpenChannel(req, chann)
 		if err != nil {

@@ -2,6 +2,8 @@ package utils
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	cryptoTypes "github.com/cosmos/cosmos-sdk/crypto/types"
@@ -17,7 +19,6 @@ import (
 	"github.com/dungtt-astra/paymentnode/pkg/common"
 	"github.com/evmos/ethermint/encoding"
 	"github.com/pkg/errors"
-	"log"
 )
 
 func NewRpcClient(cfg *config.Config) *client.Context {
@@ -131,6 +132,113 @@ func BroadcastTx(client *client.Context, account *account.PrivateKeySerialized, 
 	return res, txHash, err
 }
 
+func BuildSenderCommitmentMsg(com *common.SenderCommitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
+
+	msg := channelTypes.MsgSendercommit{
+		Creator:   chann.Multisig_Addr,
+		From:      chann.Multisig_Addr,
+		Channelid: chann.ChannelID,
+
+		Cointosender: &sdk.Coin{
+			Denom:  chann.Denom,
+			Amount: sdk.NewInt(int64(com.BalanceA)),
+		},
+		Cointohtlc: &sdk.Coin{
+			Denom:  chann.Denom,
+			Amount: sdk.NewInt(int64(com.BalanceB)),
+		},
+		Hashcodehtlc: com.HashcodeB,
+		Timelockhtlc: fmt.Sprint(com.Timelock),
+
+		Cointransfer: &sdk.Coin{
+			Denom:  chann.Denom,
+			Amount: sdk.NewInt(int64(com.AmountSendToC)),
+		},
+		Hashcodedest:     com.HashcodeC,
+		Timelockreceiver: fmt.Sprint(com.Timelock),
+		Timelocksender:   fmt.Sprint(10), // todo get currrent blockheight + allow time to complete tx
+		Multisig:         chann.Multisig_Addr,
+	}
+
+	commitmentRequest := channel.SignMsgRequest{
+		Msg:      &msg,
+		GasLimit: gaslimit,
+		GasPrice: gasprice,
+	}
+
+	return commitmentRequest
+}
+
+func BuildReceivCommitmentMsg(com *common.ReceiveCommitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
+
+	msg := channelTypes.MsgReceivercommit{
+		Creator:   chann.Multisig_Addr,
+		From:      chann.Multisig_Addr,
+		Channelid: chann.ChannelID,
+		Cointoreceiver: &sdk.Coin{
+			Denom:  chann.Denom,
+			Amount: sdk.NewInt(int64(com.BalanceB)),
+		},
+		Cointohtlc: &sdk.Coin{
+			Denom:  chann.Denom,
+			Amount: sdk.NewInt(int64(com.BalanceA)),
+		},
+		Hashcodehtlc: com.HashcodeA,
+		Timelockhtlc: fmt.Sprint(10),
+		Cointransfer: &sdk.Coin{
+			Denom:  chann.Denom,
+			Amount: sdk.NewInt(int64(com.AmountSendToC)),
+		},
+		Hashcodedest:   com.HashcodeC,
+		Timelocksender: fmt.Sprint(10), // todo get currrent blockheight + allow time to complete tx
+		Multisig:       chann.Multisig_Addr,
+	}
+
+	commitmentRequest := channel.SignMsgRequest{
+		Msg:      &msg,
+		GasLimit: gaslimit,
+		GasPrice: gasprice,
+	}
+
+	return commitmentRequest
+}
+
+func BuildAndSignReceiveCommitment(rpcClient *client.Context, account *account.PrivateKeySerialized, com *common.ReceiveCommitment_st, chann *common.Channel_st) (channel.SignMsgRequest, string, error) {
+
+	openChannelRequest := BuildReceivCommitmentMsg(com, chann, 200000, "0stake")
+
+	log.Println("BuildAndSignReceiveCommitment : ")
+	//strSig, err := channel.NewChannel(*rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
+	strSig, err := channel.NewChannel(*rpcClient).SignCommitmentMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
+	if err != nil {
+		fmt.Printf("SignMultisigTxFromOneAccount error: %v\n", err)
+		return openChannelRequest, "", err
+	}
+
+	//log.Println("Commitment A: ", openChannelRequest)
+	//log.Println("Sig of commitment: ", strSig)
+
+	return openChannelRequest, strSig, nil
+}
+
+func BuildAndSignSenderCommitment(rpcClient *client.Context, account *account.PrivateKeySerialized, com *common.SenderCommitment_st, chann *common.Channel_st) (channel.SignMsgRequest, string, error) {
+
+	openChannelRequest := BuildSenderCommitmentMsg(com, chann, 200000, "0stake")
+
+	log.Println("BuildAndSignSenderCommitment : ")
+	//strSig, err := channel.NewChannel(*rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
+	strSig, err := channel.NewChannel(*rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
+	if err != nil {
+		fmt.Printf("SignMultisigTxFromOneAccount error: %v\n", err)
+		return openChannelRequest, "", err
+	}
+
+	//log.Println("Commitment A: ", openChannelRequest)
+	//log.Println("Sig of commitment: ", strSig)
+
+	return openChannelRequest, strSig, nil
+}
+
 func BuildCommitmentMsgPartA(com *common.Commitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
 
 	msg := channelTypes.MsgCommitment{
@@ -148,7 +256,7 @@ func BuildCommitmentMsgPartA(com *common.Commitment_st, chann *common.Channel_st
 			Denom:  chann.Denom,
 			Amount: sdk.NewInt(int64(com.BalanceB)),
 		},
-		Channelid: chann.Index,
+		Channelid: chann.ChannelID,
 	}
 
 	commitmentRequest := channel.SignMsgRequest{
@@ -177,7 +285,7 @@ func BuildCommitmentMsgPartB(com *common.Commitment_st, chann *common.Channel_st
 			Denom:  chann.Denom,
 			Amount: sdk.NewInt(int64(com.BalanceA)),
 		},
-		Channelid: chann.Index,
+		Channelid: chann.ChannelID,
 	}
 
 	commitmentRequest := channel.SignMsgRequest{
@@ -297,7 +405,7 @@ func BuildCommitmentMsgReadyForBroadcast(client *client.Context, multiSigPubkey 
 		return []byte(""), errors.Wrap(err, "GetAccountNumberSequence")
 	}
 
-	log.Printf("BuildMultisigMsgReadyForBroadcast: accNum %v accSeq+1 %v", accNum, accSeq+1)
+	log.Printf("BuildCommitmentMsgReadyForBroadcast: accNum %v accSeq+1 %v", accNum, accSeq+1)
 	newTx := sdkcommon.NewTxMulSign(*client,
 		nil,
 		msgRequest.GasLimit,
@@ -363,7 +471,7 @@ func BuildMultisigMsgReadyForBroadcast(client *client.Context, multiSigPubkey cr
 		accNum,
 	)
 
-	//log.Println("Message to be Broadcast:", msgRequest)
+	log.Println("Message to be Broadcast:", msgRequest)
 	txBuilderMultiSign, err := newTx.BuildUnsignedTx(msgRequest.Msg)
 	if err != nil {
 		log.Println("BuildUnsignedTx err:", err.Error())
@@ -398,6 +506,7 @@ func BuildAndBroadCastMultisigMsg(client *client.Context, multiSigPubkey cryptoT
 
 func PartABuildFullCommiment(client *client.Context, acc *account.PrivateKeySerialized, chann *common.Channel_st, comm *common.Commitment_st) ([]byte, error) {
 
+	log.Println("PartABuildFullCommiment ...")
 	var msgRequest channel.SignMsgRequest
 
 	//msgRequest = BuildCommitmentMsgPartB(comm, chann, 200000, "0stake")
@@ -434,4 +543,9 @@ func PartBBuildFullCommiment(client *client.Context, acc *account.PrivateKeySeri
 func BroadCastCommiment(client client.Context, comm *common.Commitment_st) (*sdk.TxResponse, error) {
 
 	return client.BroadcastTxCommit(comm.TxByteForBroadcast)
+}
+
+func BroadCastSignedTx(client client.Context, txbyte []byte) (*sdk.TxResponse, error) {
+
+	return client.BroadcastTxCommit(txbyte)
 }

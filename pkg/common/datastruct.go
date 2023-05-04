@@ -5,7 +5,7 @@ import (
 )
 
 type Channel_st struct {
-	Index           string
+	ChannelID       string
 	Multisig_Addr   string
 	Multisig_Pubkey cryptoTypes.PubKey
 	PartA           string
@@ -25,6 +25,46 @@ type Commitment_st struct {
 	BalanceB           float64
 	HashcodeA          string
 	HashcodeB          string
+	SecretA            string
+	SecretB            string
+	StrSigA            string
+	StrSigB            string
+	TxByteForBroadcast []byte
+	PenaltyA_Tx        string // if this commitment is invalidated, broadcast this to fire the cheating peer in case.
+	PenaltyB_Tx        string
+	Timelock           uint64
+	Nonce              uint64
+}
+
+type SenderCommitment_st struct {
+	ChannelID          string
+	Denom              string
+	BalanceA           float64
+	BalanceB           float64
+	AmountSendToC      float64 // amount send to Carol
+	HashcodeA          string
+	HashcodeB          string
+	HashcodeC          string // Carol challenge...= hash of invoice
+	SecretA            string
+	SecretB            string
+	StrSigA            string
+	StrSigB            string
+	TxByteForBroadcast []byte
+	PenaltyA_Tx        string // if this commitment is invalidated, broadcast this to fire the cheating peer in case.
+	PenaltyB_Tx        string
+	Timelock           uint64
+	Nonce              uint64
+}
+
+type ReceiveCommitment_st struct {
+	ChannelID          string
+	Denom              string
+	BalanceA           float64
+	BalanceB           float64
+	AmountSendToC      float64 // amount send to Carol
+	HashcodeA          string
+	HashcodeB          string
+	HashcodeC          string // Carol challenge...= hash of invoice
 	SecretA            string
 	SecretB            string
 	StrSigA            string

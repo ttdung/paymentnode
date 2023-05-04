@@ -7,6 +7,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"log"
+	"time"
+
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/dungtt-astra/astra-go-sdk/account"
 	"github.com/dungtt-astra/paymentnode/config"
@@ -15,9 +19,6 @@ import (
 	node "github.com/dungtt-astra/paymentnode/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"io"
-	"log"
-	"time"
 )
 
 var (
@@ -31,7 +32,7 @@ type Balance struct {
 
 var balance_map = make(map[string]*Balance)
 
-var mmemonic = "draft eight argue sibling burden decade loop force walnut follow tunnel blossom elevator tank mutual hamster accident same primary year key loop doll keep"
+var mmemonic = "blanket drama finish rally panic wool rich blush document lake friend hole treat random advice minute unique benefit live icon decline put icon vintage"
 
 //"skull drastic call search soda fiction benefit route motor tell miracle develop float priority mom run unique tree scrub intact visual club file hundred"
 
@@ -102,7 +103,7 @@ func (c *MachineClient) Init() {
 	//c.timelock = uint64(common.TIMELOCK)
 
 	// channel
-	channel_st.PartB = "cosmos164xgenflr89l5q3q20e342z4ezpvyutlygaayf"
+	channel_st.PartB = "cosmos1sd73jqkg2d7nfxefnr9psnl7tfxsy3pnltxfa7"
 
 	//acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonic)
 	//if err != nil {
@@ -237,10 +238,10 @@ func (c *MachineClient) buildChannelInfo(req *node.MsgReqOpenChannel, res *node.
 		return common.Channel_st{}, err
 	}
 
-	channelID := fmt.Sprintf("%v:%v:%v", req.PartA_Addr, req.PartB_Addr, req.Denom)
+	channelID := fmt.Sprintf("%v:%v", multisigAddr, req.Denom)
 
 	chann := common.Channel_st{
-		Index:           channelID,
+		ChannelID:       channelID,
 		Multisig_Addr:   multisigAddr,
 		Multisig_Pubkey: multiSigPubkey,
 		PartA:           req.PartA_Addr,
@@ -255,9 +256,9 @@ func (c *MachineClient) buildChannelInfo(req *node.MsgReqOpenChannel, res *node.
 	return chann, nil
 }
 
-func (c *MachineClient) buildCommitmentInfo(req *node.MsgReqOpenChannel, res *node.MsgResOpenChannel, secret string) *common.Commitment_st {
+func (c *MachineClient) buildCommitmentInfo(channelID string, req *node.MsgReqOpenChannel, res *node.MsgResOpenChannel, secret string) *common.Commitment_st {
 	com := &common.Commitment_st{
-		ChannelID:   fmt.Sprintf("%v:%v:%v", req.PartA_Addr, req.PartB_Addr, req.Denom),
+		ChannelID:   channelID,
 		Denom:       req.Denom,
 		BalanceA:    float64(req.Deposit_Amt + req.FirstRecv - req.FirstSend),
 		BalanceB:    float64(res.Deposit_Amt - req.FirstRecv + req.FirstSend),
@@ -298,7 +299,7 @@ func (c *MachineClient) buildConfirmMsg(com *common.Commitment_st, channinfo *co
 		return msg
 	}
 
-	msg.ChannelID = channinfo.Index
+	msg.ChannelID = channinfo.ChannelID
 	msg.CommitmentSig = com_sig
 	msg.OpenChannelTxSig = openchannel_sig
 
@@ -373,7 +374,21 @@ func (c *MachineClient) openChannel() error {
 	//log.Println("PartA addr:", c.account.AccAddress().String()) //client
 	//log.Println("PartB addr:", channel_st.PartB) // node
 
-	channelID := fmt.Sprintf("%v:%v:%v", c.account.AccAddress().String(), channel_st.PartB, c.denom)
+	mmemonicBob := "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
+	accBob, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonicBob)
+	if err != nil {
+		log.Println("ImportAccount Err:", err.Error())
+		return err
+	}
+
+	multisigAddr, _, err := account.NewAccount(common.COINTYPE).CreateMulSignAccountFromTwoAccount(c.account.PublicKey(), accBob.PublicKey(), 2)
+	if err != nil {
+		return err
+	}
+
+	channelID := fmt.Sprintf("%v:%v", multisigAddr, c.denom)
+	fmt.Println("channelID: ", channelID)
+	//channelID := channel_st.ChannelID
 	secret, hashcode := c.GenerateHashcode(channelID)
 
 	req := &node.MsgReqOpenChannel{
@@ -402,19 +417,19 @@ func (c *MachineClient) openChannel() error {
 		return nil
 	}
 
-	cominfo := c.buildCommitmentInfo(req, res, secret)
+	channel_st, err = c.buildChannelInfo(req, res)
+	if err != nil {
+		log.Println(err)
+	}
 
-	comid := fmt.Sprintf("%v:%v", cominfo.ChannelID, cominfo.Nonce)
+	cominfo := c.buildCommitmentInfo(channel_st.ChannelID, req, res, secret)
+
+	comid := fmt.Sprintf("%v:%v", channel_st.ChannelID, cominfo.Nonce)
 	comm_map[comid] = cominfo
 	pre_commid = comid
 	balance_map[cominfo.ChannelID] = &Balance{
 		cominfo.BalanceA,
 		cominfo.BalanceB,
-	}
-
-	channel_st, err = c.buildChannelInfo(req, res)
-	if err != nil {
-		log.Println(err)
 	}
 
 	// todo build confirm Msg
@@ -427,6 +442,7 @@ func (c *MachineClient) openChannel() error {
 
 	txbyte, err := utils.PartABuildFullCommiment(c.rpcClient, c.GetAccount(), &channel_st, comm_map[comid])
 	if err != nil {
+		log.Println("PartABuildFullCommiment err: ", err)
 		panic(err)
 	}
 
@@ -468,6 +484,14 @@ func main() {
 
 	c := NewMachineClient(stream, client, acc)
 
+	mmemonicBob := "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
+	accBob, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonicBob)
+	if err != nil {
+		log.Println("ImportAccount Err:", err.Error())
+		return
+	}
+	cBob := NewMachineClient(stream, client, accBob)
+
 	c.Init()
 
 	go eventHandler(c)
@@ -479,28 +503,103 @@ func main() {
 
 	log.Println("Sleep 30s..")
 	time.Sleep(30 * time.Second)
-	log.Println("Start broadcast commiment..")
-	// SECTION: test broadcast a commitment
-	//log.Println("Commitment to broadcast:", comm_map[pre_commid])
 
-	res, err := utils.BroadCastCommiment(*c.rpcClient, comm_map[pre_commid])
-	log.Println("BroadCastCommiment res:", res)
-	//if err != nil && res.Code != 0 {
-	//	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", res.TxHash, res.Code)
-	//} else {
-	//	log.Printf("BroadCastCommiment txhash %v with code: %v", res.TxHash, res.Code)
-	//}
-
-	// withdraw timelock
-	log.Println("Sleep 40s..")
-	time.Sleep(40 * time.Second)
-	log.Println("Start withdraw timelock..")
-	res1, txhash, err := utils.BuildAndBroadcastWithdrawTimeLockPartA(c.rpcClient, c.account, comm_map[pre_commid], &channel_st)
-	if err != nil {
-		log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
-	} else {
-		log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
+	var comm = &common.SenderCommitment_st{
+		ChannelID:          comm_map[pre_commid].ChannelID,
+		Denom:              comm_map[pre_commid].Denom,
+		BalanceA:           comm_map[pre_commid].BalanceA,
+		BalanceB:           comm_map[pre_commid].BalanceB,
+		AmountSendToC:      10, // todo amount send to C
+		HashcodeA:          comm_map[pre_commid].HashcodeA,
+		HashcodeB:          comm_map[pre_commid].HashcodeB,
+		HashcodeC:          "secret", // todo hash invoice
+		SecretA:            comm_map[pre_commid].SecretA,
+		SecretB:            comm_map[pre_commid].SecretB,
+		StrSigA:            comm_map[pre_commid].StrSigA,
+		StrSigB:            comm_map[pre_commid].StrSigB,
+		TxByteForBroadcast: comm_map[pre_commid].TxByteForBroadcast,
+		PenaltyA_Tx:        comm_map[pre_commid].PenaltyA_Tx,
+		PenaltyB_Tx:        comm_map[pre_commid].PenaltyB_Tx,
+		Timelock:           comm_map[pre_commid].Timelock,
+		Nonce:              comm_map[pre_commid].Nonce,
 	}
+
+	scommA, strsig1, err := utils.BuildAndSignSenderCommitment(c.rpcClient, c.account, comm, &channel_st)
+
+	if err != nil {
+		log.Println("BuildAndSignSenderCommitment err:", err.Error())
+	}
+
+	log.Println("SenderCommitA:", scommA)
+	log.Println("Signature1:", strsig1)
+
+	scommB, strsig2, err := utils.BuildAndSignSenderCommitment(c.rpcClient, cBob.account, comm, &channel_st)
+
+	if err != nil {
+		log.Println("BuildAndSignSenderCommitment err:", err.Error())
+	}
+
+	log.Println("SenderCommitB:", scommB)
+	log.Println("Signature2:", strsig2)
+
+	//var r_comm = &common.ReceiveCommitment_st{
+	//	ChannelID:          comm.ChannelID,
+	//	Denom:              comm.Denom,
+	//	BalanceA:           comm.BalanceA,
+	//	BalanceB:           comm.BalanceB,
+	//	AmountSendToC:      comm.AmountSendToC, // todo amount send to C
+	//	HashcodeA:          comm.HashcodeA,
+	//	HashcodeB:          comm.HashcodeB,
+	//	HashcodeC:          comm.HashcodeC, // todo hash invoice
+	//	SecretA:            comm.SecretA,
+	//	SecretB:            comm.SecretB,
+	//	StrSigA:            comm.StrSigA,
+	//	StrSigB:            comm.StrSigB,
+	//	TxByteForBroadcast: comm.TxByteForBroadcast,
+	//	PenaltyA_Tx:        comm.PenaltyA_Tx,
+	//	PenaltyB_Tx:        comm.PenaltyB_Tx,
+	//	Timelock:           comm.Timelock,
+	//	Nonce:              comm.Nonce,
+	//}
+	//
+	//rcomm, strsig2, err := utils.BuildAndSignReceiveCommitment(c.rpcClient, cBob.account, r_comm, &channel_st)
+	//
+	//if err != nil {
+	//	log.Println("BuildAndSignSenderCommitment err:", err.Error())
+	//}
+	//
+	//log.Println("ReceiveCommit:", rcomm)
+	//log.Println("Signature:", strsig2)
+
+	log.Println("Start broadcast commiment..")
+	txbyte, err := utils.BuildMultisigMsgReadyForBroadcast(c.rpcClient, channel_st.Multisig_Pubkey, strsig1, strsig2, scommB)
+	if err != nil {
+		log.Println("BuildCommitmentMsgReadyForBroadcast Err: ", err.Error())
+		return
+	}
+	res, err := utils.BroadCastSignedTx(*c.rpcClient, txbyte)
+	//res, err := utils.BuildAndBroadCastMultisigMsg(c.rpcClient, channel_st.Multisig_Pubkey, strsig1, strsig2, scommB)
+	if err != nil {
+		log.Println("BroadCastSignedTx err:", err.Error())
+	}
+	log.Println("BroadCastSignedTx res:", res)
+
+	//
+	//
+	//res, err := utils.BroadCastCommiment(*c.rpcClient, comm_map[pre_commid])
+	//log.Println("BroadCastCommiment res:", res)
+	//
+	//
+	//// withdraw timelock
+	//log.Println("Sleep 40s..")
+	//time.Sleep(40 * time.Second)
+	//log.Println("Start withdraw timelock..")
+	//res1, txhash, err := utils.BuildAndBroadcastWithdrawTimeLockPartA(c.rpcClient, c.account, comm_map[pre_commid], &channel_st)
+	//if err != nil {
+	//	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
+	//} else {
+	//	log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
+	//}
 
 	<-waitc
 	log.Println("Client close... ")
