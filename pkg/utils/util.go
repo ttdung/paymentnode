@@ -78,9 +78,34 @@ func BuildWithdrawTimeLockPartA(com *common.Commitment_st, chann *common.Channel
 	return commitmentRequest
 }
 
+func BuildWithdrawTimeLockPartB(com *common.Commitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
+	msg := channelTypes.MsgWithdrawTimelock{
+		Creator: chann.PartB,
+		To:      chann.PartB,
+		Index:   fmt.Sprintf("%v:%v", chann.Multisig_Addr, com.HashcodeA),
+	}
+	fmt.Println("BuildWithdrawTimeLockPartB msg: ", msg)
+
+	commitmentRequest := channel.SignMsgRequest{
+		Msg:      &msg,
+		GasLimit: gaslimit,
+		GasPrice: gasprice,
+	}
+
+	return commitmentRequest
+}
+
 func BuildAndBroadcastWithdrawTimeLockPartA(rpcClient *client.Context, account *account.PrivateKeySerialized, com *common.Commitment_st, chann *common.Channel_st) (*sdk.TxResponse, string, error) {
 
 	withdrawTimelockRequest := BuildWithdrawTimeLockPartA(com, chann, 200000, "0stake")
+
+	return BroadcastTx(rpcClient, account, withdrawTimelockRequest)
+
+}
+
+func BuildAndBroadcastWithdrawTimeLockPartB(rpcClient *client.Context, account *account.PrivateKeySerialized, com *common.Commitment_st, chann *common.Channel_st) (*sdk.TxResponse, string, error) {
+
+	withdrawTimelockRequest := BuildWithdrawTimeLockPartB(com, chann, 200000, "0stake")
 
 	return BroadcastTx(rpcClient, account, withdrawTimelockRequest)
 
@@ -132,11 +157,11 @@ func BroadcastTx(client *client.Context, account *account.PrivateKeySerialized, 
 	return res, txHash, err
 }
 
-func BuildSenderCommitmentMsg(com *common.SenderCommitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
+func BuildSenderCommitmentMsgPartA(com *common.SenderCommitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
 
 	msg := channelTypes.MsgSendercommit{
 		Creator:   chann.Multisig_Addr,
-		From:      chann.Multisig_Addr,
+		From:      chann.PartA,
 		Channelid: chann.ChannelID,
 
 		Cointosender: &sdk.Coin{
@@ -148,6 +173,43 @@ func BuildSenderCommitmentMsg(com *common.SenderCommitment_st, chann *common.Cha
 			Amount: sdk.NewInt(int64(com.BalanceB)),
 		},
 		Hashcodehtlc: com.HashcodeB,
+		Timelockhtlc: fmt.Sprint(com.Timelock),
+
+		Cointransfer: &sdk.Coin{
+			Denom:  chann.Denom,
+			Amount: sdk.NewInt(int64(com.AmountSendToC)),
+		},
+		Hashcodedest:     com.HashcodeC,
+		Timelockreceiver: fmt.Sprint(com.Timelock),
+		Timelocksender:   fmt.Sprint(10), // todo get currrent blockheight + allow time to complete tx
+		Multisig:         chann.Multisig_Addr,
+	}
+
+	commitmentRequest := channel.SignMsgRequest{
+		Msg:      &msg,
+		GasLimit: gaslimit,
+		GasPrice: gasprice,
+	}
+
+	return commitmentRequest
+}
+
+func BuildSenderCommitmentMsgPartB(com *common.SenderCommitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
+
+	msg := channelTypes.MsgSendercommit{
+		Creator:   chann.Multisig_Addr,
+		From:      chann.PartB,
+		Channelid: chann.ChannelID,
+
+		Cointosender: &sdk.Coin{
+			Denom:  chann.Denom,
+			Amount: sdk.NewInt(int64(com.BalanceB)),
+		},
+		Cointohtlc: &sdk.Coin{
+			Denom:  chann.Denom,
+			Amount: sdk.NewInt(int64(com.BalanceA)),
+		},
+		Hashcodehtlc: com.HashcodeA,
 		Timelockhtlc: fmt.Sprint(com.Timelock),
 
 		Cointransfer: &sdk.Coin{
@@ -221,15 +283,33 @@ func BuildAndSignReceiveCommitment(rpcClient *client.Context, account *account.P
 	return openChannelRequest, strSig, nil
 }
 
-func BuildAndSignSenderCommitment(rpcClient *client.Context, account *account.PrivateKeySerialized, com *common.SenderCommitment_st, chann *common.Channel_st) (channel.SignMsgRequest, string, error) {
+func BuildAndSignSenderCommitmentPartA(rpcClient *client.Context, account *account.PrivateKeySerialized, com *common.SenderCommitment_st, chann *common.Channel_st) (channel.SignMsgRequest, string, error) {
 
-	openChannelRequest := BuildSenderCommitmentMsg(com, chann, 200000, "0stake")
+	openChannelRequest := BuildSenderCommitmentMsgPartA(com, chann, 200000, "0stake")
 
-	log.Println("BuildAndSignSenderCommitment : ")
+	log.Println("BuildAndSignSenderCommitmentPartA : ", openChannelRequest)
 	//strSig, err := channel.NewChannel(*rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
 	strSig, err := channel.NewChannel(*rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
 	if err != nil {
-		fmt.Printf("SignMultisigTxFromOneAccount error: %v\n", err)
+		fmt.Printf("BuildAndSignSenderCommitmentPartA error: %v\n", err)
+		return openChannelRequest, "", err
+	}
+
+	//log.Println("Commitment A: ", openChannelRequest)
+	//log.Println("Sig of commitment: ", strSig)
+
+	return openChannelRequest, strSig, nil
+}
+
+func BuildAndSignSenderCommitmentPartB(rpcClient *client.Context, account *account.PrivateKeySerialized, com *common.SenderCommitment_st, chann *common.Channel_st) (channel.SignMsgRequest, string, error) {
+
+	openChannelRequest := BuildSenderCommitmentMsgPartB(com, chann, 200000, "0stake")
+
+	log.Println("BuildAndSignSenderCommitmentPartB : ", openChannelRequest)
+	//strSig, err := channel.NewChannel(*rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
+	strSig, err := channel.NewChannel(*rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
+	if err != nil {
+		fmt.Printf("BuildAndSignSenderCommitmentPartB error: %v\n", err)
 		return openChannelRequest, "", err
 	}
 
@@ -301,7 +381,7 @@ func BuildAndSignCommitmentMsgPartA(rpcClient *client.Context, account *account.
 
 	openChannelRequest := BuildCommitmentMsgPartA(com, chann, 200000, "0stake")
 
-	log.Println("BuildAndSignCommitmentMsgPartA : ")
+	log.Println("BuildAndSignCommitmentMsgPartA : ", openChannelRequest)
 	//strSig, err := channel.NewChannel(*rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
 	strSig, err := channel.NewChannel(*rpcClient).SignCommitmentMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
 	if err != nil {
@@ -319,7 +399,7 @@ func BuildAndSignCommitmentMsgPartB(rpcClient *client.Context, account *account.
 
 	openChannelRequest := BuildCommitmentMsgPartB(com, chann, 200000, "0stake")
 
-	log.Println("BuildAndSignCommitmentMsgPartB : ")
+	log.Println("BuildAndSignCommitmentMsgPartB : ", openChannelRequest)
 	//strSig, err := channel.NewChannel(*rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
 	strSig, err := channel.NewChannel(*rpcClient).SignCommitmentMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
 	if err != nil {

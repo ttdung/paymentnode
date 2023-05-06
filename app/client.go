@@ -33,7 +33,7 @@ type Balance struct {
 var balance_map = make(map[string]*Balance)
 
 var mmemonic = "blanket drama finish rally panic wool rich blush document lake friend hole treat random advice minute unique benefit live icon decline put icon vintage"
-mmemonicBob := "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
+var mmemonicBob = "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
 var partBAddr = "cosmos1sd73jqkg2d7nfxefnr9psnl7tfxsy3pnltxfa7"
 
 //var partBAddr = "cosmos164xgenflr89l5q3q20e342z4ezpvyutlygaayf"
@@ -511,9 +511,9 @@ func main() {
 	var comm = &common.SenderCommitment_st{
 		ChannelID:          comm_map[pre_commid].ChannelID,
 		Denom:              comm_map[pre_commid].Denom,
-		BalanceA:           comm_map[pre_commid].BalanceA,
-		BalanceB:           comm_map[pre_commid].BalanceB,
-		AmountSendToC:      10, // todo amount send to C
+		BalanceA:           1,
+		BalanceB:           4,
+		AmountSendToC:      1, // todo amount send to C
 		HashcodeA:          comm_map[pre_commid].HashcodeA,
 		HashcodeB:          comm_map[pre_commid].HashcodeB,
 		HashcodeC:          "secret", // todo hash invoice
@@ -529,8 +529,8 @@ func main() {
 	}
 
 	// PART A create and sign Sender Commitment
-	_, strsig1, err := utils.BuildAndSignSenderCommitment(c.rpcClient, c.account, comm, &channel_st)
-
+	scommA, strsig1, err := utils.BuildAndSignSenderCommitmentPartA(c.rpcClient, c.account, comm, &channel_st)
+	_ = scommA
 	if err != nil {
 		log.Println("BuildAndSignSenderCommitment err:", err.Error())
 	}
@@ -538,12 +538,19 @@ func main() {
 	//log.Println("SenderCommitA:", scommA)
 	//log.Println("Signature1:", strsig1)
 
-	// PART B creates and sign Sender Commitment
-	scommB, strsig2, err := utils.BuildAndSignSenderCommitment(c.rpcClient, accBob, comm, &channel_st)
+	// PART B sign
+	scommB, strsig2, err := utils.BuildAndSignSenderCommitmentPartA(c.rpcClient, accBob, comm, &channel_st)
 
 	if err != nil {
-		log.Println("BuildAndSignSenderCommitment err:", err.Error())
+		log.Println("BuildAndSignSenderCommitmentPartA err:", err.Error())
 	}
+
+	// PART B creates and sign Sender Commitment
+	// scommB, strsig2, err := utils.BuildAndSignSenderCommitmentPartB(c.rpcClient, accBob, comm, &channel_st)
+
+	// if err != nil {
+	// 	log.Println("BuildAndSignSenderCommitment err:", err.Error())
+	// }
 
 	// Build & broadcast Sender Commitment
 	log.Println("Start broadcast sender commiment..")
@@ -614,16 +621,16 @@ func main() {
 	//log.Println("BroadCastCommiment res:", res)
 	//
 	//
-	//// withdraw timelock
-	//log.Println("Sleep 40s..")
-	//time.Sleep(40 * time.Second)
-	//log.Println("Start withdraw timelock..")
-	//res1, txhash, err := utils.BuildAndBroadcastWithdrawTimeLockPartA(c.rpcClient, c.account, comm_map[pre_commid], &channel_st)
-	//if err != nil {
-	//	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
-	//} else {
-	//	log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
-	//}
+	// withdraw timelock
+	log.Println("Sleep 10s..")
+	time.Sleep(10 * time.Second)
+	log.Println("Start withdraw timelock..")
+	res1, txhash, err := utils.BuildAndBroadcastWithdrawTimeLockPartB(c.rpcClient, c.account, comm_map[pre_commid], &channel_st)
+	if err != nil {
+		log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
+	} else {
+		log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
+	}
 
 	<-waitc
 	log.Println("Client close... ")

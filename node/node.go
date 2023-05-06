@@ -68,8 +68,8 @@ func (n *Node) Start(args []string) {
 	tcp := "tcp"
 	address := ":50005"
 	tokenSymbol := "stake"
-	//var mmemonic = "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
-	var mmemonic = "opera buyer enact elbow taxi blur clap swap rigid loud paper planet use shrug core tell device silent stomach stage green have monkey evolve"
+	var mmemonic = "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
+	// var mmemonic = "opera buyer enact elbow taxi blur clap swap rigid loud paper planet use shrug core tell device silent stomach stage green have monkey evolve"
 	//var cfg = config.Config{
 	//	ChainId:       "astra_11110-1",
 	//	Endpoint:      "http://128.199.238.171:26657",
