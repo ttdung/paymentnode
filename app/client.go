@@ -153,11 +153,9 @@ func eventHandler(c *MachineClient) {
 
 	time.Sleep(3 * time.Second)
 
-	channelID := fmt.Sprintf("%v:%v:%v", c.account.AccAddress().String(), channel_st.PartB, c.denom)
-
 	msg := &node.Msg{
 		Type: node.MsgType_REG_CHANNEL,
-		Data: []byte(channelID),
+		Data: []byte(channel_st.ChannelID), // channelID
 	}
 	c.stream.Send(msg)
 
@@ -237,10 +235,10 @@ func (c *MachineClient) buildChannelInfo(req *node.MsgReqOpenChannel, res *node.
 		return common.Channel_st{}, err
 	}
 
-	channelID := fmt.Sprintf("%v:%v:%v", req.PartA_Addr, req.PartB_Addr, req.Denom)
+	channelID := fmt.Sprintf("%v:%v", multisigAddr, req.Denom)
 
 	chann := common.Channel_st{
-		Index:           channelID,
+		ChannelID:       channelID,
 		Multisig_Addr:   multisigAddr,
 		Multisig_Pubkey: multiSigPubkey,
 		PartA:           req.PartA_Addr,
@@ -256,8 +254,15 @@ func (c *MachineClient) buildChannelInfo(req *node.MsgReqOpenChannel, res *node.
 }
 
 func (c *MachineClient) buildCommitmentInfo(req *node.MsgReqOpenChannel, res *node.MsgResOpenChannel, secret string) *common.Commitment_st {
+	peerPubkey, err := account.NewPKAccount(res.Pubkey)
+
+	multisigAddr, _, err := account.NewAccount(common.COINTYPE).CreateMulSignAccountFromTwoAccount(c.account.PublicKey(), peerPubkey.PublicKey(), 2)
+	if err != nil {
+		return nil
+	}
+
 	com := &common.Commitment_st{
-		ChannelID:   fmt.Sprintf("%v:%v:%v", req.PartA_Addr, req.PartB_Addr, req.Denom),
+		ChannelID:   fmt.Sprintf("%v:%v", multisigAddr, req.Denom),
 		Denom:       req.Denom,
 		BalanceA:    float64(req.Deposit_Amt + req.FirstRecv - req.FirstSend),
 		BalanceB:    float64(res.Deposit_Amt - req.FirstRecv + req.FirstSend),
@@ -298,7 +303,7 @@ func (c *MachineClient) buildConfirmMsg(com *common.Commitment_st, channinfo *co
 		return msg
 	}
 
-	msg.ChannelID = channinfo.Index
+	msg.ChannelID = channinfo.ChannelID
 	msg.CommitmentSig = com_sig
 	msg.OpenChannelTxSig = openchannel_sig
 
@@ -373,8 +378,8 @@ func (c *MachineClient) openChannel() error {
 	//log.Println("PartA addr:", c.account.AccAddress().String()) //client
 	//log.Println("PartB addr:", channel_st.PartB) // node
 
-	channelID := fmt.Sprintf("%v:%v:%v", c.account.AccAddress().String(), channel_st.PartB, c.denom)
-	secret, hashcode := c.GenerateHashcode(channelID)
+	randomseed := fmt.Sprintf("%v:%v:%v", c.account.AccAddress().String(), channel_st.PartB, c.denom)
+	secret, hashcode := c.GenerateHashcode(randomseed)
 
 	req := &node.MsgReqOpenChannel{
 		Version:      c.version,
@@ -389,13 +394,8 @@ func (c *MachineClient) openChannel() error {
 		FirstRecv:    1,
 	}
 
-	balance_map[channelID] = &Balance{
-		float64(req.Deposit_Amt + req.FirstRecv - req.FirstSend),
-		0,
-	}
-
 	log.Println("RequestOpenChannel ...")
-	log.Println("RequestOpenChannel ...:", req)
+	//log.Println("RequestOpenChannel ...:", req)
 	res, err := c.client.RequestOpenChannel(context.Background(), req)
 	if err != nil {
 		log.Println(err)
@@ -470,12 +470,12 @@ func main() {
 
 	c.Init()
 
-	go eventHandler(c)
-
 	err = c.openChannel()
 	if err != nil {
 		log.Fatalf("Openchannel error: %v", err)
 	}
+
+	go eventHandler(c)
 
 	log.Println("Sleep 30s..")
 	time.Sleep(30 * time.Second)

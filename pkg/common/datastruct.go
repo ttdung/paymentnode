@@ -5,7 +5,7 @@ import (
 )
 
 type Channel_st struct {
-	Index           string
+	ChannelID       string
 	Multisig_Addr   string
 	Multisig_Pubkey cryptoTypes.PubKey
 	PartA           string

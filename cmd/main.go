@@ -4,6 +4,7 @@ package main
 //
 import (
 	node "github.com/dungtt-astra/paymentnode/node"
+	"log"
 	"os"
 )
 
@@ -18,5 +19,6 @@ func init() {
 func main() {
 	// Starting Seoser
 
+	log.Println("Node start listen...")
 	paymentnode.Start(os.Args)
 }

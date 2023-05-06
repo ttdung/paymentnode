@@ -148,7 +148,7 @@ func BuildCommitmentMsgPartA(com *common.Commitment_st, chann *common.Channel_st
 			Denom:  chann.Denom,
 			Amount: sdk.NewInt(int64(com.BalanceB)),
 		},
-		Channelid: chann.Index,
+		Channelid: chann.ChannelID,
 	}
 
 	commitmentRequest := channel.SignMsgRequest{
@@ -177,7 +177,7 @@ func BuildCommitmentMsgPartB(com *common.Commitment_st, chann *common.Channel_st
 			Denom:  chann.Denom,
 			Amount: sdk.NewInt(int64(com.BalanceA)),
 		},
-		Channelid: chann.Index,
+		Channelid: chann.ChannelID,
 	}
 
 	commitmentRequest := channel.SignMsgRequest{

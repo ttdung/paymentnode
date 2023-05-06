@@ -146,7 +146,7 @@ func (n *Node) doReplyOpenChannel(req *node.MsgReqOpenChannel, cn *common.Channe
 
 	com_nonce := getNonce()
 
-	channelID := fmt.Sprintf("%v:%v:%v", req.PartA_Addr, req.PartB_Addr, req.Denom)
+	channelID := fmt.Sprintf("%v:%v", cn.Multisig_Addr, req.Denom)
 	commitID := fmt.Sprintf("%v:%v", channelID, com_nonce)
 
 	secret, hashcode := n.owner.GenerateHashcode(commitID)
@@ -213,9 +213,9 @@ func (n *Node) parseToChannelSt(req *node.MsgReqOpenChannel) (*common.Channel_st
 
 	log.Println("MultisigAddr:", multisigAddr)
 
-	channelID := fmt.Sprintf("%v:%v:%v", req.PartA_Addr, req.PartB_Addr, req.Denom)
+	channelID := fmt.Sprintf("%v:%v", multisigAddr, req.Denom)
 	chann := &common.Channel_st{
-		Index:           channelID,
+		ChannelID:       channelID,
 		Multisig_Addr:   multisigAddr,
 		Multisig_Pubkey: multiSigPubkey,
 		PartA:           req.PartA_Addr,
@@ -238,7 +238,7 @@ func (n *Node) handleRequestOpenChannel(req *node.MsgReqOpenChannel) (*node.MsgR
 	if n.isThisNode(req.PeerNodeAddr) {
 
 		chann, err := n.parseToChannelSt(req)
-		channel_map[chann.Index] = chann
+		channel_map[chann.ChannelID] = chann
 
 		res, err := n.doReplyOpenChannel(req, chann)
 		if err != nil {
