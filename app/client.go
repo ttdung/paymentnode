@@ -17,6 +17,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"io"
 	"log"
+	"os"
+	"strconv"
 	"time"
 )
 
@@ -31,9 +33,10 @@ type Balance struct {
 
 var balance_map = make(map[string]*Balance)
 
-var mmemonic = "draft eight argue sibling burden decade loop force walnut follow tunnel blossom elevator tank mutual hamster accident same primary year key loop doll keep"
-
-//"skull drastic call search soda fiction benefit route motor tell miracle develop float priority mom run unique tree scrub intact visual club file hundred"
+var mmemonic = []string{
+	"draft eight argue sibling burden decade loop force walnut follow tunnel blossom elevator tank mutual hamster accident same primary year key loop doll keep",
+	"skull drastic call search soda fiction benefit route motor tell miracle develop float priority mom run unique tree scrub intact visual club file hundred",
+}
 
 var waitc = make(chan struct{})
 
@@ -218,7 +221,11 @@ func (c *MachineClient) handleResponseOpenChannel(in *node.MsgResOpenChannel) (s
 func (c *MachineClient) GenerateHashcode(commitID string) (string, string) {
 
 	now := time.Now()
+
 	secret := fmt.Sprintf("%v:%v:%v", c.passcode, now, commitID)
+
+	// TODO remove on production, this is for testing purpose
+	secret = "abcd"
 
 	hash := sha256.Sum256([]byte(secret))
 	hashcode := base64.StdEncoding.EncodeToString(hash[:])
@@ -372,6 +379,41 @@ func (c *MachineClient) makePayment(rp NotifReqPaymentSt) error {
 	return err
 }
 
+func (c *MachineClient) buildInfo(req *node.MsgReqOpenChannel, res *node.MsgResOpenChannel, secret string) *node.MsgConfirmOpenChannel {
+
+	cominfo := c.buildCommitmentInfo(req, res, secret)
+
+	comid := fmt.Sprintf("%v:%v", cominfo.ChannelID, cominfo.Nonce)
+	comm_map[comid] = cominfo
+	pre_commid = comid
+	balance_map[cominfo.ChannelID] = &Balance{
+		cominfo.BalanceA,
+		cominfo.BalanceB,
+	}
+
+	channel_st, err := c.buildChannelInfo(req, res)
+	if err != nil {
+		log.Println(err)
+	}
+
+	// todo build confirm Msg
+
+	//log.Println("openChannel... channel_st:")
+	//log.Println(channel_st)
+
+	confirmMsg := c.buildConfirmMsg(cominfo, &channel_st)
+	comm_map[comid].StrSigA = confirmMsg.CommitmentSig
+
+	txbyte, err := utils.PartABuildFullCommiment(c.rpcClient, c.GetAccount(), &channel_st, comm_map[comid])
+	if err != nil {
+		panic(err)
+	}
+
+	comm_map[comid].TxByteForBroadcast = txbyte
+
+	return confirmMsg
+}
+
 func (c *MachineClient) openChannel() error {
 
 	//pubkey := c.account.PublicKey().String()
@@ -402,42 +444,7 @@ func (c *MachineClient) openChannel() error {
 		return nil
 	}
 
-	cominfo := c.buildCommitmentInfo(req, res, secret)
-
-	comid := fmt.Sprintf("%v:%v", cominfo.ChannelID, cominfo.Nonce)
-	comm_map[comid] = cominfo
-	pre_commid = comid
-	balance_map[cominfo.ChannelID] = &Balance{
-		cominfo.BalanceA,
-		cominfo.BalanceB,
-	}
-
-	channel_st, err = c.buildChannelInfo(req, res)
-	if err != nil {
-		log.Println(err)
-	}
-
-	// todo build confirm Msg
-
-	//log.Println("openChannel... channel_st:")
-	//log.Println(channel_st)
-
-	confirmMsg := c.buildConfirmMsg(cominfo, &channel_st)
-	comm_map[comid].StrSigA = confirmMsg.CommitmentSig
-
-	txbyte, err := utils.PartABuildFullCommiment(c.rpcClient, c.GetAccount(), &channel_st, comm_map[comid])
-	if err != nil {
-		panic(err)
-	}
-
-	comm_map[comid].TxByteForBroadcast = txbyte
-
-	//res1, err := c.rpcClient.BroadcastTx(txbyte)
-	//if err != nil {
-	//	log.Printf("\nBroadcast commit failed %v code %v", res1.TxHash, res1.Code)
-	//} else {
-	//	log.Printf("\nBroadcast commit ok  %v code %v", res1.TxHash, res1.Code)
-	//}
+	confirmMsg := c.buildInfo(req, res, secret)
 
 	log.Println("ConfirmOpenChannel ...")
 	resConfirm, err := c.client.ConfirmOpenChannel(context.Background(), confirmMsg)
@@ -452,7 +459,17 @@ func (c *MachineClient) openChannel() error {
 
 func main() {
 
-	acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonic)
+	var mmem = mmemonic[0]
+
+	argsWithProg := os.Args
+	if len(argsWithProg) >= 2 {
+		i, _ := strconv.Atoi(os.Args[1])
+		mmem = mmemonic[i]
+	}
+
+	log.Println("Mmem:", mmem)
+
+	acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmem)
 	if err != nil {
 		log.Println("ImportAccount Err:", err.Error())
 		return
@@ -477,14 +494,14 @@ func main() {
 
 	go eventHandler(c)
 
-	log.Println("Sleep 30s..")
+	log.Println("Sleep 25s..")
 	time.Sleep(30 * time.Second)
 	log.Println("Start broadcast commiment..")
 	// SECTION: test broadcast a commitment
 	//log.Println("Commitment to broadcast:", comm_map[pre_commid])
 
 	res, err := utils.BroadCastCommiment(*c.rpcClient, comm_map[pre_commid])
-	log.Println("BroadCastCommiment res:", res)
+	log.Println("BroadCastCommiment res code:", res.Code)
 	//if err != nil && res.Code != 0 {
 	//	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", res.TxHash, res.Code)
 	//} else {
@@ -492,7 +509,7 @@ func main() {
 	//}
 
 	// withdraw timelock
-	log.Println("Sleep 40s..")
+	log.Println("Sleep 100s..")
 	time.Sleep(40 * time.Second)
 	log.Println("Start withdraw timelock..")
 	res1, txhash, err := utils.BuildAndBroadcastWithdrawTimeLockPartA(c.rpcClient, c.account, comm_map[pre_commid], &channel_st)

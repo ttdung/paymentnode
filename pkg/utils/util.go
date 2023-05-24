@@ -85,6 +85,56 @@ func BuildAndBroadcastWithdrawTimeLockPartA(rpcClient *client.Context, account *
 
 }
 
+func BuildWithdrawHashLockPartA(com *common.Commitment_st, chann *common.Channel_st, secret string, gaslimit uint64, gasprice string) channel.SignMsgRequest {
+	msg := channelTypes.MsgWithdrawHashlock{
+		Creator: chann.PartA,
+		To:      chann.PartA,
+		Index:   fmt.Sprintf("%v:%v", chann.Multisig_Addr, com.HashcodeB),
+		Secret:  secret,
+	}
+
+	commitmentRequest := channel.SignMsgRequest{
+		Msg:      &msg,
+		GasLimit: gaslimit,
+		GasPrice: gasprice,
+	}
+
+	return commitmentRequest
+}
+
+func BuildWithdrawHashLockPartB(com *common.Commitment_st, chann *common.Channel_st, secret string, gaslimit uint64, gasprice string) channel.SignMsgRequest {
+	msg := channelTypes.MsgWithdrawHashlock{
+		Creator: chann.PartB,
+		To:      chann.PartB,
+		Index:   fmt.Sprintf("%v:%v", chann.Multisig_Addr, com.HashcodeA),
+		Secret:  secret,
+	}
+
+	commitmentRequest := channel.SignMsgRequest{
+		Msg:      &msg,
+		GasLimit: gaslimit,
+		GasPrice: gasprice,
+	}
+
+	return commitmentRequest
+}
+
+func BuildAndBroadcastWithdrawHashLockPartA(rpcClient *client.Context, account *account.PrivateKeySerialized, com *common.Commitment_st, chann *common.Channel_st, secret string) (*sdk.TxResponse, string, error) {
+
+	withdrawTimelockRequest := BuildWithdrawHashLockPartA(com, chann, secret, 200000, "0stake")
+
+	return BroadcastTx(rpcClient, account, withdrawTimelockRequest)
+
+}
+
+func BuildAndBroadcastWithdrawHashLockPartB(rpcClient *client.Context, account *account.PrivateKeySerialized, com *common.Commitment_st, chann *common.Channel_st, secret string) (*sdk.TxResponse, string, error) {
+
+	withdrawTimelockRequest := BuildWithdrawHashLockPartB(com, chann, secret, 200000, "0stake")
+
+	return BroadcastTx(rpcClient, account, withdrawTimelockRequest)
+
+}
+
 func BroadcastTx(client *client.Context, account *account.PrivateKeySerialized, request channel.SignMsgRequest) (*sdk.TxResponse, string, error) {
 
 	newTx := sdkcommon.NewTx(

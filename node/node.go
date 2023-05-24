@@ -19,11 +19,12 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 var channel_map = make(map[string]*common.Channel_st)
 
-var commitment_map = make(map[string]*common.Commitment_st)
+var comm_map = make(map[string]*common.Commitment_st)
 
 type openchann_info struct {
 	openchannel_msg       *channelTypes.MsgOpenChannel
@@ -187,7 +188,7 @@ func (n *Node) doReplyOpenChannel(req *node.MsgReqOpenChannel, cn *common.Channe
 	//log.Println("Commitment Sig:", str_sig)
 
 	comm.StrSigB = str_sig
-	commitment_map[commitID] = &comm
+	comm_map[commitID] = &comm
 	pre_commid = commitID
 
 	res := &node.MsgResOpenChannel{
@@ -297,8 +298,8 @@ func (n *Node) handleConfirmOpenChannel(msg *node.MsgConfirmOpenChannel) (*sdk.T
 		return nil, errors.New("Client reject openchannel")
 	}
 
-	commitment_map[pre_commid].StrSigA = msg.GetCommitmentSig()
-	comm := commitment_map[pre_commid]
+	comm_map[pre_commid].StrSigA = msg.GetCommitmentSig()
+	comm := comm_map[pre_commid]
 	chann := channel_map[msg.ChannelID]
 
 	// broadcast commitment
@@ -307,7 +308,7 @@ func (n *Node) handleConfirmOpenChannel(msg *node.MsgConfirmOpenChannel) (*sdk.T
 		log.Println("PartBBuildFullCommiment er:", err.Error())
 	}
 
-	commitment_map[pre_commid].TxByteForBroadcast = txbyte
+	comm_map[pre_commid].TxByteForBroadcast = txbyte
 
 	openChannelRequest, partBsig, err := utils.BuildAndSignOpenChannelMsg(n.rpcClient, n.owner.Account, chann)
 	if err != nil {
@@ -403,7 +404,7 @@ func (n *Node) NotifyPayment(channelID string) error {
 	}
 
 	commid := fmt.Sprintf("%v:%v", comm.ChannelID, tnonce)
-	commitment_map[commid] = comm
+	comm_map[commid] = comm
 
 	data, _ := json.Marshal(rp)
 	msg := &node.Msg{
@@ -419,7 +420,7 @@ func (n *Node) ConfirmPayment(ctx context.Context, msg *node.MsgConfirmPayment) 
 
 	log.Println("ConfirmPayment:", msg)
 
-	commitment_map[msg.CommID].SecretA = msg.SecretPreComm
+	comm_map[msg.CommID].SecretA = msg.SecretPreComm
 
 	log.Println("Balance A:", balance_map[msg.ChannelID].partA)
 	log.Println("Balance B:", balance_map[msg.ChannelID].partB)
@@ -440,13 +441,13 @@ func (n *Node) ConfirmPayment(ctx context.Context, msg *node.MsgConfirmPayment) 
 func (n *Node) RequestPayment(ctx context.Context, msg *node.MsgReqPayment) (*node.MsgResPayment, error) {
 
 	log.Println("RequestPayment: ", msg)
-	comm := commitment_map[msg.CommitmentID]
+	comm := comm_map[msg.CommitmentID]
 	if comm == nil {
 		return nil, errors.New("Wrong commitment ID")
 	}
 
 	comm.HashcodeA = msg.Hashcode
-	commitment_map[msg.CommitmentID] = comm
+	comm_map[msg.CommitmentID] = comm
 
 	_, com_sig, err := utils.BuildAndSignCommitmentMsgPartB(n.rpcClient, n.owner.Account, comm, channel_map[msg.ChannelID])
 	if err != nil {
@@ -490,6 +491,19 @@ func (n *Node) OpenStream(stream node.Node_OpenStreamServer) error {
 			stream_map[string(msgData)] = stream
 			//n.NotifyPayment(g_channelid)
 			//stream.Context().
+
+			// withdraw hashlock
+			log.Println("Sleep 50s..")
+			time.Sleep(50 * time.Second)
+			log.Println("Start withdraw hashlock..")
+			secretA := "abcd"
+
+			res1, txhash, err := utils.BuildAndBroadcastWithdrawHashLockPartB(n.rpcClient, n.owner.Account, comm_map[pre_commid], channel_map[comm_map[pre_commid].ChannelID], secretA)
+			if err != nil {
+				log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
+			} else {
+				log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
+			}
 		default:
 
 		}
