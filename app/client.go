@@ -512,7 +512,7 @@ func main() {
 		ChannelID:          comm_map[pre_commid].ChannelID,
 		Denom:              comm_map[pre_commid].Denom,
 		BalanceA:           1,
-		BalanceB:           4,
+		BalanceB:           3,
 		AmountSendToC:      1, // todo amount send to C
 		HashcodeA:          comm_map[pre_commid].HashcodeA,
 		HashcodeB:          comm_map[pre_commid].HashcodeB,
@@ -524,9 +524,10 @@ func main() {
 		TxByteForBroadcast: comm_map[pre_commid].TxByteForBroadcast,
 		PenaltyA_Tx:        comm_map[pre_commid].PenaltyA_Tx,
 		PenaltyB_Tx:        comm_map[pre_commid].PenaltyB_Tx,
-		Timelock:           comm_map[pre_commid].Timelock,
+		Timelock:           2,
 		Nonce:              comm_map[pre_commid].Nonce,
 	}
+	fmt.Println("timelock: ", comm.Timelock)
 
 	// PART A create and sign Sender Commitment
 	scommA, strsig1, err := utils.BuildAndSignSenderCommitmentPartA(c.rpcClient, c.account, comm, &channel_st)
@@ -622,15 +623,35 @@ func main() {
 	//
 	//
 	// withdraw timelock
-	log.Println("Sleep 10s..")
-	time.Sleep(10 * time.Second)
+	log.Println("Sleep wait withdraw 1 time 2s..")
+	time.Sleep(2 * time.Second)
 	log.Println("Start withdraw timelock..")
-	res1, txhash, err := utils.BuildAndBroadcastWithdrawTimeLockPartB(c.rpcClient, c.account, comm_map[pre_commid], &channel_st)
+	res1, txhash, err := utils.BuildAndBroadcastWithdrawTimeLockPartB(c.rpcClient, accBob, comm_map[pre_commid], &channel_st)
 	if err != nil {
 		log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
 	} else {
 		log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
 	}
+
+	log.Println("Sleep wait withdraw 1.5 time 10s..")
+	time.Sleep(8 * time.Second)
+	log.Println("Start withdraw timelock..")
+	res1, txhash, err = utils.BuildAndBroadcastWithdrawTimeLockPartB(c.rpcClient, accBob, comm_map[pre_commid], &channel_st)
+	if err != nil {
+		log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
+	} else {
+		log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
+	}
+
+	// log.Println("Sleep wait withdraw 2 time 20s..")
+	// time.Sleep(10 * time.Second)
+	// log.Println("Start withdraw timelock..")
+	// res1, txhash, err = utils.BuildAndBroadcastWithdrawTimeLockPartB(c.rpcClient, accBob, comm_map[pre_commid], &channel_st)
+	// if err != nil {
+	// 	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
+	// } else {
+	// 	log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
+	// }
 
 	<-waitc
 	log.Println("Client close... ")

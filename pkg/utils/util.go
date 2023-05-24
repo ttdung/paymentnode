@@ -82,7 +82,7 @@ func BuildWithdrawTimeLockPartB(com *common.Commitment_st, chann *common.Channel
 	msg := channelTypes.MsgWithdrawTimelock{
 		Creator: chann.PartB,
 		To:      chann.PartB,
-		Index:   fmt.Sprintf("%v:%v", chann.Multisig_Addr, com.HashcodeA),
+		Index:   fmt.Sprintf("%v:%v", chann.Multisig_Addr, com.HashcodeB),
 	}
 	fmt.Println("BuildWithdrawTimeLockPartB msg: ", msg)
 
@@ -159,6 +159,7 @@ func BroadcastTx(client *client.Context, account *account.PrivateKeySerialized, 
 
 func BuildSenderCommitmentMsgPartA(com *common.SenderCommitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
 
+	fmt.Println("Sender timelock: ", com.Timelock)
 	msg := channelTypes.MsgSendercommit{
 		Creator:   chann.Multisig_Addr,
 		From:      chann.PartA,
