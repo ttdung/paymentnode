@@ -34,6 +34,8 @@ type Balance struct {
 var balance_map = make(map[string]*Balance)
 
 var mmemonic = []string{
+	"call squirrel toddler country senior forum eternal aunt attract garbage soon decade attend tell box south visit learn lion come special simple spoon borrow",
+	"run dry absent vicious since caution attitude elephant pool ocean sad entry chronic grunt alarm much human purse sausage stumble level very master fame",
 	"draft eight argue sibling burden decade loop force walnut follow tunnel blossom elevator tank mutual hamster accident same primary year key loop doll keep",
 	"skull drastic call search soda fiction benefit route motor tell miracle develop float priority mom run unique tree scrub intact visual club file hundred",
 }
@@ -494,30 +496,30 @@ func main() {
 
 	go eventHandler(c)
 
-	log.Println("Sleep 25s..")
-	time.Sleep(30 * time.Second)
-	log.Println("Start broadcast commiment..")
-	// SECTION: test broadcast a commitment
-	//log.Println("Commitment to broadcast:", comm_map[pre_commid])
+	//log.Println("Sleep 25s..")
+	//time.Sleep(30 * time.Second)
+	//log.Println("Start broadcast commiment..")
+	//// SECTION: test broadcast a commitment
+	////log.Println("Commitment to broadcast:", comm_map[pre_commid])
 
-	res, err := utils.BroadCastCommiment(*c.rpcClient, comm_map[pre_commid])
-	log.Println("BroadCastCommiment res code:", res.Code)
-	//if err != nil && res.Code != 0 {
-	//	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", res.TxHash, res.Code)
+	//res, err := utils.BroadCastCommiment(*c.rpcClient, comm_map[pre_commid])
+	//log.Println("BroadCastCommiment res code:", res.Code)
+	////if err != nil && res.Code != 0 {
+	////	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", res.TxHash, res.Code)
+	////} else {
+	////	log.Printf("BroadCastCommiment txhash %v with code: %v", res.TxHash, res.Code)
+	////}
+	//
+	//// withdraw timelock
+	//log.Println("Sleep 100s..")
+	//time.Sleep(40 * time.Second)
+	//log.Println("Start withdraw timelock..")
+	//res1, txhash, err := utils.BuildAndBroadcastWithdrawTimeLockPartA(c.rpcClient, c.account, comm_map[pre_commid], &channel_st)
+	//if err != nil {
+	//	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
 	//} else {
-	//	log.Printf("BroadCastCommiment txhash %v with code: %v", res.TxHash, res.Code)
+	//	log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
 	//}
-
-	// withdraw timelock
-	log.Println("Sleep 100s..")
-	time.Sleep(40 * time.Second)
-	log.Println("Start withdraw timelock..")
-	res1, txhash, err := utils.BuildAndBroadcastWithdrawTimeLockPartA(c.rpcClient, c.account, comm_map[pre_commid], &channel_st)
-	if err != nil {
-		log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
-	} else {
-		log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
-	}
 
 	<-waitc
 	log.Println("Client close... ")

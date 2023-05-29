@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 	"io"
 	"log"
+	"math/big"
 	"net"
 	"sync"
 	"time"
@@ -231,6 +232,29 @@ func (n *Node) parseToChannelSt(req *node.MsgReqOpenChannel) (*common.Channel_st
 	return chann, nil
 }
 
+func (n *Node) initNewMultisigAddr(chann *common.Channel_st) error {
+
+	res, err := utils.TransferTokenWithPrivateKey(n.owner.Account.PrivateKeyToString(),
+		*n.rpcClient,
+		chann.Denom,
+		common.COINTYPE,
+		chann.Multisig_Addr,
+		big.NewInt(1),
+		200000,
+		"0stake",
+	)
+
+	if err != nil {
+		return err
+	}
+
+	if res.Code != 0 { // not success
+		return fmt.Errorf("Send failed with txhash %v & code %v", res.TxHash, res.Code)
+	}
+
+	return nil
+}
+
 func (n *Node) handleRequestOpenChannel(req *node.MsgReqOpenChannel) (*node.MsgResOpenChannel, error) {
 
 	log.Println("PartA addr:", req.PartA_Addr)           // client
@@ -240,6 +264,26 @@ func (n *Node) handleRequestOpenChannel(req *node.MsgReqOpenChannel) (*node.MsgR
 
 		chann, err := n.parseToChannelSt(req)
 		channel_map[chann.ChannelID] = chann
+
+		err = n.initNewMultisigAddr(chann)
+		if err != nil {
+			log.Println("handleRequestOpenChannel: ", err.Error())
+			return nil, err
+		} else {
+			// Wait for this tx included in chain
+			for true {
+				balance, err := utils.GetBalance(n.rpcClient, chann.Multisig_Addr)
+
+				if err != nil {
+					return nil, err
+				}
+				time.Sleep(time.Second * 1)
+				if balance.Int64() == 0 {
+					continue
+				}
+				break
+			}
+		}
 
 		res, err := n.doReplyOpenChannel(req, chann)
 		if err != nil {
@@ -489,21 +533,21 @@ func (n *Node) OpenStream(stream node.Node_OpenStreamServer) error {
 		switch msgType {
 		case node.MsgType_REG_CHANNEL:
 			stream_map[string(msgData)] = stream
-			//n.NotifyPayment(g_channelid)
-			//stream.Context().
-
-			// withdraw hashlock
-			log.Println("Sleep 50s..")
-			time.Sleep(50 * time.Second)
-			log.Println("Start withdraw hashlock..")
-			secretA := "abcd"
-
-			res1, txhash, err := utils.BuildAndBroadcastWithdrawHashLockPartB(n.rpcClient, n.owner.Account, comm_map[pre_commid], channel_map[comm_map[pre_commid].ChannelID], secretA)
-			if err != nil {
-				log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
-			} else {
-				log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
-			}
+			////n.NotifyPayment(g_channelid)
+			////stream.Context().
+			//
+			//// withdraw hashlock
+			//log.Println("Sleep 50s..")
+			//time.Sleep(50 * time.Second)
+			//log.Println("Start withdraw hashlock..")
+			//secretA := "abcd"
+			//
+			//res1, txhash, err := utils.BuildAndBroadcastWithdrawHashLockPartB(n.rpcClient, n.owner.Account, comm_map[pre_commid], channel_map[comm_map[pre_commid].ChannelID], secretA)
+			//if err != nil {
+			//	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
+			//} else {
+			//	log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
+			//}
 		default:
 
 		}

@@ -9,6 +9,7 @@ import (
 	signingTypes "github.com/cosmos/cosmos-sdk/types/tx/signing"
 	authTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/dungtt-astra/astra-go-sdk/account"
+	"github.com/dungtt-astra/astra-go-sdk/bank"
 	"github.com/dungtt-astra/astra-go-sdk/channel"
 	sdkcommon "github.com/dungtt-astra/astra-go-sdk/common"
 	"github.com/dungtt-astra/channel/app"
@@ -18,6 +19,9 @@ import (
 	"github.com/evmos/ethermint/encoding"
 	"github.com/pkg/errors"
 	"log"
+	"math/big"
+	"strings"
+	"time"
 )
 
 func NewRpcClient(cfg *config.Config) *client.Context {
@@ -132,6 +136,46 @@ func BuildAndBroadcastWithdrawHashLockPartB(rpcClient *client.Context, account *
 	withdrawTimelockRequest := BuildWithdrawHashLockPartB(com, chann, secret, 200000, "0stake")
 
 	return BroadcastTx(rpcClient, account, withdrawTimelockRequest)
+
+}
+
+func TransferTokenWithPrivateKey(privateKey string,
+	rpcClient client.Context,
+	tokenSymbol string,
+	coinType uint32,
+	receiver string,
+	amount *big.Int,
+	gaslimit uint64,
+	gasprice string) (*sdk.TxResponse, error) {
+
+	bankClient := bank.NewBank(rpcClient, tokenSymbol, coinType)
+
+	request := &bank.TransferRequest{
+		PrivateKey: privateKey,
+		Receiver:   receiver,
+		Amount:     amount,
+		GasLimit:   gaslimit,
+		GasPrice:   gasprice,
+	}
+
+	txBuilder, err := bankClient.TransferRawDataWithPrivateKey(request)
+	if err != nil {
+		panic(err)
+	}
+
+	txJson, err := sdkcommon.TxBuilderJsonEncoder(rpcClient.TxConfig, txBuilder)
+	if err != nil {
+		panic(err)
+	}
+
+	txByte, err := sdkcommon.TxBuilderJsonDecoder(rpcClient.TxConfig, txJson)
+	if err != nil {
+		panic(err)
+	}
+
+	//txHash := sdkcommon.TxHash(txByte)
+
+	return rpcClient.BroadcastTxCommit(txByte)
 
 }
 
@@ -263,16 +307,25 @@ func BuildAndSignCommitmentMsgPartB(rpcClient *client.Context, account *account.
 
 	log.Println("BuildAndSignCommitmentMsgPartB : ")
 	//strSig, err := channel.NewChannel(*rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
-	strSig, err := channel.NewChannel(*rpcClient).SignCommitmentMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
-	if err != nil {
-		fmt.Printf("SignMultisigTxFromOneAccount error: %v\n", err)
-		return openChannelRequest, "", err
-	}
 
+	for true {
+		strSig, err := channel.NewChannel(*rpcClient).SignCommitmentMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				time.Sleep(time.Second)
+				log.Println("BuildAndSignCommitmentMsgPartB err: ", err.Error())
+				continue
+			}
+			fmt.Printf("BuildAndSignCommitmentMsgPartB error: %v\n", err.Error())
+			return openChannelRequest, "", err
+		} else {
+			return openChannelRequest, strSig, nil
+		}
+	}
 	//log.Println("Commitment B: ", openChannelRequest)
 	//log.Println("Sig of commitment: ", strSig)
 
-	return openChannelRequest, strSig, nil
+	return openChannelRequest, "", errors.New("unknown")
 }
 
 func BuildOpenChannelMsg(chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
@@ -484,4 +537,11 @@ func PartBBuildFullCommiment(client *client.Context, acc *account.PrivateKeySeri
 func BroadCastCommiment(client client.Context, comm *common.Commitment_st) (*sdk.TxResponse, error) {
 
 	return client.BroadcastTxCommit(comm.TxByteForBroadcast)
+}
+
+func GetBalance(rpcClient *client.Context, addr string) (*big.Int, error) {
+
+	bankClient := bank.NewBank(*rpcClient, "stake", common.COINTYPE)
+
+	return bankClient.Balance(addr)
 }
