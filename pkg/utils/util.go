@@ -95,6 +95,28 @@ func BuildWithdrawTimeLockPartB(com *common.Commitment_st, chann *common.Channel
 	return commitmentRequest
 }
 
+func BuildWithdrawHashLockPartA(com *common.Commitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
+	msg := channelTypes.MsgWithdrawHashlock{
+		Creator: chann.PartA,
+		To:      chann.PartA,
+		Index:   fmt.Sprintf("%v:%v", chann.Multisig_Addr, com.HashcodeB),
+		Secret:  com.SecretB,
+	}
+	fmt.Println("commSecB: ", com.SecretB)
+	fmt.Println("commSecA: ", com.SecretA)
+	fmt.Println("commHashA: ", com.HashcodeA)
+	fmt.Println("commHashB: ", com.HashcodeB)
+	fmt.Println("BuildWithdrawHashLockPartA msg: ", msg)
+
+	commitmentRequest := channel.SignMsgRequest{
+		Msg:      &msg,
+		GasLimit: gaslimit,
+		GasPrice: gasprice,
+	}
+
+	return commitmentRequest
+}
+
 func BuildAndBroadcastWithdrawTimeLockPartA(rpcClient *client.Context, account *account.PrivateKeySerialized, com *common.Commitment_st, chann *common.Channel_st) (*sdk.TxResponse, string, error) {
 
 	withdrawTimelockRequest := BuildWithdrawTimeLockPartA(com, chann, 200000, "0stake")
@@ -106,6 +128,14 @@ func BuildAndBroadcastWithdrawTimeLockPartA(rpcClient *client.Context, account *
 func BuildAndBroadcastWithdrawTimeLockPartB(rpcClient *client.Context, account *account.PrivateKeySerialized, com *common.Commitment_st, chann *common.Channel_st) (*sdk.TxResponse, string, error) {
 
 	withdrawTimelockRequest := BuildWithdrawTimeLockPartB(com, chann, 200000, "0stake")
+
+	return BroadcastTx(rpcClient, account, withdrawTimelockRequest)
+
+}
+
+func BuildAndBroadcastWithdrawHashLockPartA(rpcClient *client.Context, account *account.PrivateKeySerialized, com *common.Commitment_st, chann *common.Channel_st) (*sdk.TxResponse, string, error) {
+
+	withdrawTimelockRequest := BuildWithdrawHashLockPartA(com, chann, 200000, "0stake")
 
 	return BroadcastTx(rpcClient, account, withdrawTimelockRequest)
 

@@ -58,7 +58,8 @@ type Node struct {
 	address   string
 }
 
-var mmemonicAlice = "blanket drama finish rally panic wool rich blush document lake friend hole treat random advice minute unique benefit live icon decline put icon vintage"
+// var mmemonicAlice = "blanket drama finish rally panic wool rich blush document lake friend hole treat random advice minute unique benefit live icon decline put icon vintage"
+var mmemonicAlice = "globe output invite salon drama fresh bleak nasty apology attack leaf height gravity bullet dolphin taxi must language state electric uncover damage danger auction"
 
 //var mmemonicAlice = "draft eight argue sibling burden decade loop force walnut follow tunnel blossom elevator tank mutual hamster accident same primary year key loop doll keep"
 
@@ -68,7 +69,7 @@ func (n *Node) Start(args []string) {
 	tcp := "tcp"
 	address := ":50005"
 	tokenSymbol := "stake"
-	var mmemonic = "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
+	var mmemonic = "walnut jazz because arena defense gadget demand before bleak shiver note glove history flee quarter sustain alcohol weather exact small violin diamond bean trumpet"
 	// var mmemonic = "opera buyer enact elbow taxi blur clap swap rigid loud paper planet use shrug core tell device silent stomach stage green have monkey evolve"
 	//var cfg = config.Config{
 	//	ChainId:       "astra_11110-1",

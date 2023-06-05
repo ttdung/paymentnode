@@ -32,9 +32,13 @@ type Balance struct {
 
 var balance_map = make(map[string]*Balance)
 
-var mmemonic = "blanket drama finish rally panic wool rich blush document lake friend hole treat random advice minute unique benefit live icon decline put icon vintage"
-var mmemonicBob = "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
-var partBAddr = "cosmos1sd73jqkg2d7nfxefnr9psnl7tfxsy3pnltxfa7"
+// var mmemonic = "blanket drama finish rally panic wool rich blush document lake friend hole treat random advice minute unique benefit live icon decline put icon vintage"
+// var mmemonicBob = "embrace maid pond garbage almost crash silent maximum talent athlete view head horror label view sand ten market motion ceiling piano knee fun mechanic"
+// var partBAddr = "cosmos1sd73jqkg2d7nfxefnr9psnl7tfxsy3pnltxfa7"
+
+var mmemonic = "globe output invite salon drama fresh bleak nasty apology attack leaf height gravity bullet dolphin taxi must language state electric uncover damage danger auction"
+var mmemonicBob = "walnut jazz because arena defense gadget demand before bleak shiver note glove history flee quarter sustain alcohol weather exact small violin diamond bean trumpet"
+var partBAddr = "cosmos1mzh8m9yn90lt4dtwkq5grpcskqgmgzxmghdk72"
 
 //var partBAddr = "cosmos164xgenflr89l5q3q20e342z4ezpvyutlygaayf"
 //var mmemonic = "draft eight argue sibling burden decade loop force walnut follow tunnel blossom elevator tank mutual hamster accident same primary year key loop doll keep"
@@ -625,23 +629,41 @@ func main() {
 	// withdraw timelock
 	log.Println("Sleep wait withdraw 1 time 2s..")
 	time.Sleep(2 * time.Second)
-	log.Println("Start withdraw timelock..")
-	res1, txhash, err := utils.BuildAndBroadcastWithdrawTimeLockPartB(c.rpcClient, accBob, comm_map[pre_commid], &channel_st)
+	// log.Println("Start withdraw timelock..")
+	// res1, txhash, err := utils.BuildAndBroadcastWithdrawTimeLockPartB(c.rpcClient, accBob, comm_map[pre_commid], &channel_st)
+	// if err != nil {
+	// 	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
+	// } else {
+	// 	log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
+	// }
+
+	// log.Println("Sleep wait withdraw 1.5 time 10s..")
+	// time.Sleep(8 * time.Second)
+	// log.Println("Start withdraw timelock..")
+	// res1, txhash, err = utils.BuildAndBroadcastWithdrawTimeLockPartB(c.rpcClient, accBob, comm_map[pre_commid], &channel_st)
+	// if err != nil {
+	// 	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
+	// } else {
+	// 	log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
+	// }
+
+	log.Println("Start withdraw hashlock..")
+	res1, txhash, err := utils.BuildAndBroadcastWithdrawHashLockPartA(c.rpcClient, c.account, comm_map[pre_commid], &channel_st)
 	if err != nil {
-		log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
+		log.Fatalf("BuildAndBroadcastWithdrawHashLockPartA txhash %v failed with code: %v", txhash, err.Error())
 	} else {
-		log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
+		log.Printf("BuildAndBroadcastWithdrawHashLockPartA txhash %v with code: %v", res1.TxHash, res1.Code)
 	}
 
-	log.Println("Sleep wait withdraw 1.5 time 10s..")
-	time.Sleep(8 * time.Second)
-	log.Println("Start withdraw timelock..")
-	res1, txhash, err = utils.BuildAndBroadcastWithdrawTimeLockPartB(c.rpcClient, accBob, comm_map[pre_commid], &channel_st)
-	if err != nil {
-		log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
-	} else {
-		log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
-	}
+	// log.Println("Sleep wait withdraw 1.5 time 10s..")
+	// time.Sleep(8 * time.Second)
+	// log.Println("Start withdraw timelock..")
+	// res1, txhash, err = utils.BuildAndBroadcastWithdrawHashLockPartA(c.rpcClient, c.account, comm_map[pre_commid], &channel_st)
+	// if err != nil {
+	// 	log.Fatalf("BroadCastCommiment txhash %v failed with code: %v", txhash, err.Error())
+	// } else {
+	// 	log.Printf("BroadCastCommiment txhash %v with code: %v", res1.TxHash, res1.Code)
+	// }
 
 	// log.Println("Sleep wait withdraw 2 time 20s..")
 	// time.Sleep(10 * time.Second)
