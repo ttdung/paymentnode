@@ -1,0 +1,2 @@
+go run cmd/main.go
+go run app/client.go

@@ -12,17 +12,17 @@ type Channel_st struct {
 	PartB           string
 	PubkeyA         cryptoTypes.PubKey
 	PubkeyB         cryptoTypes.PubKey
-	Denom           string
-	Amount_partA    float64
-	Amount_partB    float64
+	Denom           []string
+	Amount_partA    []uint64
+	Amount_partB    []uint64
 	Timelock        uint64
 }
 
 type Commitment_st struct {
 	ChannelID          string
-	Denom              string
-	BalanceA           float64
-	BalanceB           float64
+	Denom              []string
+	BalanceA           []uint64
+	BalanceB           []uint64
 	HashcodeA          string
 	HashcodeB          string
 	SecretA            string
@@ -37,8 +37,11 @@ type Commitment_st struct {
 }
 
 const (
-	COINTYPE = uint32(118) // test type for this project
+	//COINTYPE = uint32(118) // test type for this project
+	COINTYPE = uint32(60) // test type for this project
 	TIMELOCK = uint32(1)
+	DENOM    = "aastra"
+	GASPRICE = "0aastra"
 )
 
 //const COINTYPE = ethermintTypes.Bip44CoinType

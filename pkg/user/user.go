@@ -12,13 +12,13 @@ import (
 
 type User struct {
 	Passcode    string
-	Denom       string
-	Deposit_Amt float64
+	Denom       []string
+	Deposit_Amt []uint64
 	Account     *account.PrivateKeySerialized
 	Nonce       uint64
 }
 
-func NewUser(passcode string, denom string, deposit_amt float64, mmemonic string) (*User, error) {
+func NewUser(passcode string, denom []string, deposit_amt []uint64, mmemonic string) (*User, error) {
 
 	acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonic)
 	if err != nil {

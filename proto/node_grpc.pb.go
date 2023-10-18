@@ -19,11 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Node_RequestOpenChannel_FullMethodName = "/node.Node/RequestOpenChannel"
-	Node_ConfirmOpenChannel_FullMethodName = "/node.Node/ConfirmOpenChannel"
-	Node_RequestPayment_FullMethodName     = "/node.Node/RequestPayment"
-	Node_ConfirmPayment_FullMethodName     = "/node.Node/ConfirmPayment"
-	Node_OpenStream_FullMethodName         = "/node.Node/OpenStream"
+	Node_RequestOpenChannel_FullMethodName  = "/node.Node/RequestOpenChannel"
+	Node_ConfirmOpenChannel_FullMethodName  = "/node.Node/ConfirmOpenChannel"
+	Node_RequestPayment_FullMethodName      = "/node.Node/RequestPayment"
+	Node_ConfirmPayment_FullMethodName      = "/node.Node/ConfirmPayment"
+	Node_RequestUserRegister_FullMethodName = "/node.Node/RequestUserRegister"
+	Node_OpenStream_FullMethodName          = "/node.Node/OpenStream"
 )
 
 // NodeClient is the client API for Node service.
@@ -34,6 +35,7 @@ type NodeClient interface {
 	ConfirmOpenChannel(ctx context.Context, in *MsgConfirmOpenChannel, opts ...grpc.CallOption) (*MsgResConfirmOpenChannel, error)
 	RequestPayment(ctx context.Context, in *MsgReqPayment, opts ...grpc.CallOption) (*MsgResPayment, error)
 	ConfirmPayment(ctx context.Context, in *MsgConfirmPayment, opts ...grpc.CallOption) (*MsgResConfirmPayment, error)
+	RequestUserRegister(ctx context.Context, in *MsgReqUserRegister, opts ...grpc.CallOption) (*MsgResUserRegister, error)
 	// rpc Register(MsgRegisterRequest) returns (MsgRegisterResponse) {};
 	OpenStream(ctx context.Context, opts ...grpc.CallOption) (Node_OpenStreamClient, error)
 }
@@ -82,6 +84,15 @@ func (c *nodeClient) ConfirmPayment(ctx context.Context, in *MsgConfirmPayment, 
 	return out, nil
 }
 
+func (c *nodeClient) RequestUserRegister(ctx context.Context, in *MsgReqUserRegister, opts ...grpc.CallOption) (*MsgResUserRegister, error) {
+	out := new(MsgResUserRegister)
+	err := c.cc.Invoke(ctx, Node_RequestUserRegister_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nodeClient) OpenStream(ctx context.Context, opts ...grpc.CallOption) (Node_OpenStreamClient, error) {
 	stream, err := c.cc.NewStream(ctx, &Node_ServiceDesc.Streams[0], Node_OpenStream_FullMethodName, opts...)
 	if err != nil {
@@ -121,6 +132,7 @@ type NodeServer interface {
 	ConfirmOpenChannel(context.Context, *MsgConfirmOpenChannel) (*MsgResConfirmOpenChannel, error)
 	RequestPayment(context.Context, *MsgReqPayment) (*MsgResPayment, error)
 	ConfirmPayment(context.Context, *MsgConfirmPayment) (*MsgResConfirmPayment, error)
+	RequestUserRegister(context.Context, *MsgReqUserRegister) (*MsgResUserRegister, error)
 	// rpc Register(MsgRegisterRequest) returns (MsgRegisterResponse) {};
 	OpenStream(Node_OpenStreamServer) error
 	mustEmbedUnimplementedNodeServer()
@@ -141,6 +153,9 @@ func (UnimplementedNodeServer) RequestPayment(context.Context, *MsgReqPayment) (
 }
 func (UnimplementedNodeServer) ConfirmPayment(context.Context, *MsgConfirmPayment) (*MsgResConfirmPayment, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ConfirmPayment not implemented")
+}
+func (UnimplementedNodeServer) RequestUserRegister(context.Context, *MsgReqUserRegister) (*MsgResUserRegister, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestUserRegister not implemented")
 }
 func (UnimplementedNodeServer) OpenStream(Node_OpenStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method OpenStream not implemented")
@@ -230,6 +245,24 @@ func _Node_ConfirmPayment_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Node_RequestUserRegister_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MsgReqUserRegister)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).RequestUserRegister(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Node_RequestUserRegister_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).RequestUserRegister(ctx, req.(*MsgReqUserRegister))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Node_OpenStream_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(NodeServer).OpenStream(&nodeOpenStreamServer{stream})
 }
@@ -278,6 +311,10 @@ var Node_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ConfirmPayment",
 			Handler:    _Node_ConfirmPayment_Handler,
+		},
+		{
+			MethodName: "RequestUserRegister",
+			Handler:    _Node_RequestUserRegister_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

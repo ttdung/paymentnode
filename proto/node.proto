@@ -9,7 +9,6 @@ enum ConnectionStatus {
   CLOSE = 1;
 }
 
-
 enum MsgType {
   ERROR = 0;
   CONFIRM_OPENCHANNEL = 1;
@@ -24,6 +23,8 @@ service Node {
   rpc ConfirmOpenChannel(MsgConfirmOpenChannel) returns(MsgResConfirmOpenChannel) {};
   rpc RequestPayment(MsgReqPayment) returns (MsgResPayment) {};
   rpc ConfirmPayment(MsgConfirmPayment) returns (MsgResConfirmPayment) {};
+
+  rpc RequestUserRegister(MsgReqUserRegister) returns (MsgResUserRegister) {};
 //  rpc Register(MsgRegisterRequest) returns (MsgRegisterResponse) {};
   rpc OpenStream(stream Msg) returns (stream Msg) {};
 }
@@ -43,13 +44,28 @@ message MsgResponse {
   google.protobuf.Struct data = 2;
 }
 
+message MsgReqUserRegister {
+  string Pubkey = 1;
+  string Addr = 2;
+  uint32 sequence = 3;
+}
+
+message MsgResUserRegister {
+  bool Result = 1;
+  string Pubkey = 2;
+  string ChannelID = 3;
+  string Memo = 4;
+}
+
 message MsgReqPayment {
-  string ChannelID = 1;
-  uint64 SendAmt = 2;
-  uint64 RecvAmt = 3;
-  string Hashcode = 4;
-  string CommitmentID = 5;
-  string Commitment_sig = 6;
+  uint32 Type = 1; // 0 multihop, 1 singlehop
+  string Sender_addr = 2;
+  string ChannelID = 3;
+  repeated uint64 SendAmt = 4;
+  repeated uint64 RecvAmt = 5;
+  string Hashcode = 6;
+  string CommitmentID = 7;
+  string Commitment_sig = 8;
 }
 
 message MsgResPayment {
@@ -91,18 +107,19 @@ message MsgReqOpenChannel {
   string PartA_Addr = 2;
   string PartB_Addr = 3;
   string PubkeyA = 4;
-  uint64 Deposit_Amt = 5;
-  string Denom = 6;
+  repeated uint64 Deposit_Amt = 5;
+  repeated string Denom = 6;
   string Hashcode = 7;
   string peerNodeAddr = 8; // IP:port
-  uint64 FirstSend = 9;
-  uint64 FirstRecv = 10;
+  repeated uint64 FirstSend = 9;
+  repeated uint64 FirstRecv = 10;
+  uint64 Sequence = 11;
 }
 
 message MsgResOpenChannel {
   string Pubkey = 1;
-  uint64 Deposit_Amt = 2;
-  string Denom = 3;
+  repeated uint64 Deposit_Amt = 2;
+  repeated string Denom = 3;
   string Hashcode = 4;
   string Commitment_Sig = 5;
   uint64 Nonce = 6;

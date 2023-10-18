@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -14,6 +15,7 @@ import (
 	"github.com/dungtt-astra/paymentnode/pkg/utils"
 	node "github.com/dungtt-astra/paymentnode/proto"
 	"google.golang.org/grpc"
+	//"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"io"
 	"log"
@@ -22,23 +24,28 @@ import (
 	"time"
 )
 
+const SINGLE_HOP = 0
+const MULTI_HOP = 1
+
+var nonce = uint64(0)
 var (
 	serverAddr = flag.String("server_addr", "localhost:50005", "The server address in the format of host:port")
 )
 
 type Balance struct {
-	partA float64
-	partB float64
+	partA []uint64
+	partB []uint64
 }
 
 var balance_map = make(map[string]*Balance)
 
 var mmemonic = []string{
-	"call squirrel toddler country senior forum eternal aunt attract garbage soon decade attend tell box south visit learn lion come special simple spoon borrow",
-	"run dry absent vicious since caution attitude elephant pool ocean sad entry chronic grunt alarm much human purse sausage stumble level very master fame",
-	"draft eight argue sibling burden decade loop force walnut follow tunnel blossom elevator tank mutual hamster accident same primary year key loop doll keep",
-	"skull drastic call search soda fiction benefit route motor tell miracle develop float priority mom run unique tree scrub intact visual club file hundred",
+	/* a11 */ "cigar oak another become velvet open puppy tone park nose arch notice winner message ribbon exotic fall squeeze conduct metal trap female history sort",
+	/* a8 */ "observe degree glove awful radio radar fiscal deer quick shoe pond oval title life ranch index vivid length economy unknown unusual tenant wall crumble",
+	/* a9 */ "relief expect tomato plate spice program treat insect legal thing object admit enjoy sunset model orient what creek stereo ensure bicycle provide artwork zoo",
 }
+
+var partB = "astra12gvhhhvhd9emrkwlj3q48yzz9adgz72ykpejrj" // a12
 
 var waitc = make(chan struct{})
 
@@ -51,8 +58,8 @@ type MachineClient struct {
 	//machine.UnimplementedMachineClient
 	stream  node.Node_OpenStreamClient
 	account *account.PrivateKeySerialized
-	denom   string
-	amount  int64
+	denom   []string
+	amount  []uint64
 	version string
 	//channel   data.Msg_Channel
 	rpcClient *client.Context
@@ -61,21 +68,21 @@ type MachineClient struct {
 	timelock  uint64
 }
 
-//var cfg = &config.Config{
-//	ChainId:       "astra_11110-1",
-//	Endpoint:      "http://128.199.238.171:26657",
-//	CoinType:      ethermintTypes.Bip44CoinType,
-//	PrefixAddress: "astra",
-//	TokenSymbol:   "aastra",
-//}
-
 var cfg = &config.Config{
-	ChainId:       "testchain",
+	ChainId:       "astra_11115-1",
 	Endpoint:      "http://localhost:26657",
-	CoinType:      common.COINTYPE,
-	PrefixAddress: "cosmos",
-	TokenSymbol:   "stake",
+	CoinType:      common.COINTYPE, //ethermintTypes.Bip44CoinType,
+	PrefixAddress: "astra",
+	TokenSymbol:   []string{common.DENOM},
 }
+
+//var cfg = &config.Config{
+//	ChainId:       "testchain",
+//	Endpoint:      "http://localhost:26657",
+//	CoinType:      common.COINTYPE,
+//	PrefixAddress: "cosmos",
+//	TokenSymbol:   common.DENOM,
+//}
 
 func NewMachineClient(stream node.Node_OpenStreamClient,
 	client node.NodeClient,
@@ -84,8 +91,8 @@ func NewMachineClient(stream node.Node_OpenStreamClient,
 	return &MachineClient{
 		stream,
 		account,
-		"stake",
-		0,
+		[]string{common.DENOM},
+		[]uint64{0},
 		"0.1",
 		utils.NewRpcClient(cfg),
 		client,
@@ -101,13 +108,13 @@ func (c *MachineClient) Init() {
 	//c.passcode = "secret string"
 	////c.stream = stream
 	//
-	//c.denom = "stake"
+	//c.denom = common.DENOM
 	//c.amount = 0
 	//c.version = "0.1"
 	//c.timelock = uint64(common.TIMELOCK)
 
 	// channel
-	channel_st.PartB = "cosmos164xgenflr89l5q3q20e342z4ezpvyutlygaayf"
+	channel_st.PartB = partB
 
 	//acc, err := account.NewAccount(common.COINTYPE).ImportAccount(mmemonic)
 	//if err != nil {
@@ -147,72 +154,13 @@ func connect(serverAddr *string) (node.NodeClient, node.Node_OpenStreamClient, *
 }
 
 type NotifReqPaymentSt struct {
-	ChannelID string
-	SendAmt   uint64
-	RecvAmt   uint64
-	Nonce     uint64
-	Hashcode  string
-}
-
-func eventHandler(c *MachineClient) {
-
-	time.Sleep(3 * time.Second)
-
-	msg := &node.Msg{
-		Type: node.MsgType_REG_CHANNEL,
-		Data: []byte(channel_st.ChannelID), // channelID
-	}
-	c.stream.Send(msg)
-
-	for {
-		msg, err := c.stream.Recv()
-		if err == io.EOF {
-			log.Println("EOF")
-			close(waitc)
-			return
-		}
-		if err != nil {
-			log.Printf("Err: %v", err)
-			close(waitc)
-			return
-		}
-		log.Printf("output: %v", msg.String())
-
-		msgtype := msg.GetType()
-		data := msg.GetData()
-		//cmd_type := util.CmdType(cmd)
-		//
-		switch msgtype {
-		case node.MsgType_REQ_PAYMENT:
-			var rp NotifReqPaymentSt
-			json.Unmarshal(data, &rp)
-			log.Println("Make payment....")
-			log.Println(rp)
-
-			err := c.makePayment(rp)
-			if err != nil {
-				log.Println("makePayment err:", err.Error())
-			}
-
-			log.Println("BalanceA: ", comm_map[pre_commid].BalanceA)
-			log.Println("BalanceB: ", comm_map[pre_commid].BalanceB)
-
-			close(waitc)
-			return
-		//
-		case node.MsgType_MSG_CLOSE:
-			close(waitc)
-			return
-		//	log.Fatalf("Error: %v", data.Fields[field.Error].GetStringValue())
-
-		default:
-			close(waitc)
-			//return status.Errorf(codes.Unimplemented, "Operation '%s' not implemented yet", operator)
-			log.Println(codes.Unimplemented, "Operation '%s' not implemented yet ", msgtype)
-
-			return
-		}
-	}
+	Type       uint32
+	SenderAddr string
+	ChannelID  string
+	SendAmt    []uint64
+	RecvAmt    []uint64
+	Nonce      uint64
+	Hashcode   string
 }
 
 func (c *MachineClient) handleResponseOpenChannel(in *node.MsgResOpenChannel) (string, error) {
@@ -236,15 +184,20 @@ func (c *MachineClient) GenerateHashcode(commitID string) (string, string) {
 }
 
 func (c *MachineClient) buildChannelInfo(req *node.MsgReqOpenChannel, res *node.MsgResOpenChannel) (common.Channel_st, error) {
-	log.Println("server pubkey:", res.Pubkey)
+
 	peerPubkey, err := account.NewPKAccount(res.Pubkey)
 
+	log.Println("Peer pubkey:", peerPubkey.AccAddress())
+	log.Println("Client pubkey:", c.account.PublicKey().Address())
 	multisigAddr, multiSigPubkey, err := account.NewAccount(common.COINTYPE).CreateMulSignAccountFromTwoAccount(c.account.PublicKey(), peerPubkey.PublicKey(), 2)
 	if err != nil {
 		return common.Channel_st{}, err
 	}
 
-	channelID := fmt.Sprintf("%v:%v", multisigAddr, req.Denom)
+	log.Println("MultisigAddr:", multisigAddr)
+	log.Println("multiSigPubkey:", multiSigPubkey.Address())
+
+	channelID := fmt.Sprintf("%v:%v", multisigAddr, req.Sequence)
 
 	chann := common.Channel_st{
 		ChannelID:       channelID,
@@ -255,8 +208,8 @@ func (c *MachineClient) buildChannelInfo(req *node.MsgReqOpenChannel, res *node.
 		PubkeyA:         c.account.PublicKey(),
 		PubkeyB:         peerPubkey.PublicKey(),
 		Denom:           req.Denom,
-		Amount_partA:    float64(req.Deposit_Amt),
-		Amount_partB:    float64(res.Deposit_Amt),
+		Amount_partA:    req.Deposit_Amt,
+		Amount_partB:    res.Deposit_Amt,
 	}
 
 	return chann, nil
@@ -270,11 +223,20 @@ func (c *MachineClient) buildCommitmentInfo(req *node.MsgReqOpenChannel, res *no
 		return nil
 	}
 
+	var balanceA, balanceB []uint64
+	balanceA = make([]uint64, len(req.Deposit_Amt))
+	balanceB = make([]uint64, len(req.Deposit_Amt))
+
+	for i := 0; i < len(req.Deposit_Amt); i++ {
+		balanceA[i] = req.Deposit_Amt[i] + req.FirstRecv[i] - req.FirstSend[i]
+		balanceB[i] = req.Deposit_Amt[i] - req.FirstRecv[i] + req.FirstSend[i]
+	}
+
 	com := &common.Commitment_st{
 		ChannelID:   fmt.Sprintf("%v:%v", multisigAddr, req.Denom),
 		Denom:       req.Denom,
-		BalanceA:    float64(req.Deposit_Amt + req.FirstRecv - req.FirstSend),
-		BalanceB:    float64(res.Deposit_Amt - req.FirstRecv + req.FirstSend),
+		BalanceA:    balanceA,
+		BalanceB:    balanceB,
 		HashcodeA:   req.Hashcode,
 		HashcodeB:   res.Hashcode,
 		SecretA:     secret,
@@ -319,16 +281,25 @@ func (c *MachineClient) buildConfirmMsg(com *common.Commitment_st, channinfo *co
 	return msg
 }
 
-func (c *MachineClient) makePayment(rp NotifReqPaymentSt) error {
+func (c *MachineClient) makeReqDirectPayment(rp NotifReqPaymentSt) error {
 
 	//balance_map
 	secret, hashcode := c.GenerateHashcode(rp.ChannelID)
 
+	var balanceA, balanceB []uint64
+	balanceA = make([]uint64, len(rp.SendAmt))
+	balanceB = make([]uint64, len(rp.SendAmt))
+
+	for i := 0; i < len(rp.SendAmt); i++ {
+		balanceA[i] = balance_map[rp.ChannelID].partA[i] + rp.SendAmt[i] - rp.RecvAmt[i]
+		balanceB[i] = balance_map[rp.ChannelID].partB[i] + rp.RecvAmt[i] - rp.SendAmt[i]
+	}
+
 	com := &common.Commitment_st{
 		ChannelID:   rp.ChannelID,
 		Denom:       c.denom,
-		BalanceA:    balance_map[rp.ChannelID].partA + float64(rp.SendAmt) - float64(rp.RecvAmt),
-		BalanceB:    balance_map[rp.ChannelID].partB + float64(rp.RecvAmt) - float64(rp.SendAmt),
+		BalanceA:    balanceA,
+		BalanceB:    balanceB,
 		HashcodeA:   hashcode,
 		HashcodeB:   rp.Hashcode,
 		SecretA:     secret,
@@ -381,6 +352,20 @@ func (c *MachineClient) makePayment(rp NotifReqPaymentSt) error {
 	return err
 }
 
+func (c *MachineClient) makeMultiHopPayment(rp NotifReqPaymentSt) error {
+
+	return nil
+}
+
+func (c *MachineClient) makePayment(rp NotifReqPaymentSt) error {
+
+	if rp.Type == SINGLE_HOP {
+		return c.makeReqDirectPayment(rp)
+	} else {
+		return c.makeMultiHopPayment(rp)
+	}
+}
+
 func (c *MachineClient) buildInfo(req *node.MsgReqOpenChannel, res *node.MsgResOpenChannel, secret string) *node.MsgConfirmOpenChannel {
 
 	cominfo := c.buildCommitmentInfo(req, res, secret)
@@ -400,12 +385,13 @@ func (c *MachineClient) buildInfo(req *node.MsgReqOpenChannel, res *node.MsgResO
 
 	// todo build confirm Msg
 
-	//log.Println("openChannel... channel_st:")
-	//log.Println(channel_st)
+	log.Println("Client build channel info... channel_st:")
+	log.Println(channel_st)
 
 	confirmMsg := c.buildConfirmMsg(cominfo, &channel_st)
 	comm_map[comid].StrSigA = confirmMsg.CommitmentSig
 
+	log.Println("Client start PartABuildFullCommiment()..")
 	txbyte, err := utils.PartABuildFullCommiment(c.rpcClient, c.GetAccount(), &channel_st, comm_map[comid])
 	if err != nil {
 		panic(err)
@@ -430,16 +416,16 @@ func (c *MachineClient) openChannel() error {
 		PartA_Addr:   c.account.AccAddress().String(),
 		PartB_Addr:   channel_st.PartB,
 		PubkeyA:      c.account.PublicKey().String(),
-		Deposit_Amt:  0,
+		Deposit_Amt:  []uint64{5},
 		Denom:        c.denom,
 		Hashcode:     hashcode,
 		PeerNodeAddr: ":50005",
-		FirstSend:    0,
-		FirstRecv:    1,
+		FirstSend:    []uint64{0},
+		FirstRecv:    []uint64{0},
+		Sequence:     1,
 	}
 
-	log.Println("RequestOpenChannel ...")
-	//log.Println("RequestOpenChannel ...:", req)
+	log.Println("RequestOpenChannel ...:", req)
 	res, err := c.client.RequestOpenChannel(context.Background(), req)
 	if err != nil {
 		log.Println(err)
@@ -455,6 +441,99 @@ func (c *MachineClient) openChannel() error {
 	}
 
 	log.Printf("res ConfirmOpenChannel...txhash %v, code %v", resConfirm.TxHash, resConfirm.Code)
+
+	return nil
+}
+
+func eventHandler(c *MachineClient) {
+
+	time.Sleep(3 * time.Second)
+
+	msg := &node.Msg{
+		Type: node.MsgType_REG_CHANNEL,
+		Data: []byte(channel_st.ChannelID), // channelID
+	}
+	c.stream.Send(msg)
+
+	for {
+		msg, err := c.stream.Recv()
+		if err == io.EOF {
+			log.Println("EOF")
+			close(waitc)
+			return
+		}
+		if err != nil {
+			log.Printf("Err: %v", err)
+			close(waitc)
+			return
+		}
+		log.Printf("output: %v", msg.String())
+
+		msgtype := msg.GetType()
+		data := msg.GetData()
+		//cmd_type := util.CmdType(cmd)
+		//
+		switch msgtype {
+		case node.MsgType_REQ_PAYMENT:
+			var rp NotifReqPaymentSt
+			json.Unmarshal(data, &rp)
+			log.Println("Make payment....")
+			log.Println(rp)
+
+			err := c.makeReqDirectPayment(rp)
+			if err != nil {
+				log.Println("makePayment err:", err.Error())
+			}
+
+			log.Println("BalanceA: ", comm_map[pre_commid].BalanceA)
+			log.Println("BalanceB: ", comm_map[pre_commid].BalanceB)
+
+			close(waitc)
+			return
+		//
+		case node.MsgType_MSG_CLOSE:
+			close(waitc)
+			return
+		//	log.Fatalf("Error: %v", data.Fields[field.Error].GetStringValue())
+
+		default:
+			close(waitc)
+			//return status.Errorf(codes.Unimplemented, "Operation '%s' not implemented yet", operator)
+			log.Println(codes.Unimplemented, "Operation '%s' not implemented yet ", msgtype)
+
+			return
+		}
+	}
+}
+
+func (c *MachineClient) Register() (*node.MsgResUserRegister, error) {
+
+	req := &node.MsgReqUserRegister{
+		Pubkey:   c.account.PublicKey().String(),
+		Addr:     c.account.AccAddress().String(),
+		Sequence: 1,
+	}
+
+	return c.client.RequestUserRegister(context.Background(), req)
+}
+
+func (c *MachineClient) makeReqMultiHopPayment() error {
+
+	_, hashcode := c.GenerateHashcode(channel_st.ChannelID)
+
+	sendAmt := []uint64{1}
+	recvAmt := []uint64{0}
+
+	req := &node.MsgReqPayment{
+		Type:       MULTI_HOP,
+		SenderAddr: "", // addr of the sender node
+		ChannelID:  channel_st.ChannelID,
+		SendAmt:    sendAmt,
+		RecvAmt:    recvAmt,
+		Hashcode:   hashcode,
+	}
+
+	c.client.RequestPayment(context.Background(), req)
 
 	return nil
 }
@@ -489,6 +568,14 @@ func main() {
 
 	c.Init()
 
+	res, err := c.Register()
+	if err != nil {
+		log.Printf("Err: %v", err)
+		return
+	}
+
+	fmt.Println("Register successful, res:", res)
+
 	err = c.openChannel()
 	if err != nil {
 		log.Fatalf("Openchannel error: %v", err)
@@ -496,6 +583,19 @@ func main() {
 
 	go eventHandler(c)
 
+	for true {
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Enter your cmd:")
+		cmd, _ := reader.ReadString('\n')
+
+		switch cmd {
+		case "r":
+
+			fmt.Println("create a receipt")
+		default:
+			break
+		}
+	}
 	//log.Println("Sleep 25s..")
 	//time.Sleep(30 * time.Second)
 	//log.Println("Start broadcast commiment..")
