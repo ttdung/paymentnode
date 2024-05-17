@@ -4,8 +4,8 @@ go 1.18
 
 require (
 	github.com/cosmos/cosmos-sdk v0.45.11
-	github.com/dungtt-astra/astra-go-sdk v0.0.9
-	github.com/dungtt-astra/channel v0.0.3
+	github.com/ttdung/astra-go-sdk v0.1.0
+	github.com/ttdung/channel_v0.46 v0.0.1
 	github.com/evmos/ethermint v0.19.3
 	github.com/pkg/errors v0.9.1
 	google.golang.org/grpc v1.53.0
@@ -215,6 +215,3 @@ require (
 )
 
 replace  github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.3-alpha.regen.1
-replace github.com/dungtt-astra/astra-go-sdk =>  /Users/dungtran/stella/sourcecode/astra-go-sdk
-replace github.com/dungtt-astra/channel =>  /Users/dungtran/stella/sourcecode/channel
-
