@@ -26,7 +26,7 @@ var channel_map = make(map[string]*common.Channel_st)
 var commitment_map = make(map[string]*common.Commitment_st)
 
 type openchann_info struct {
-	openchannel_msg       *channelTypes.MsgOpenChannel
+	openchannel_msg       *channelTypes.MsgOpenchannel
 	openchannel_sig_partB string
 }
 

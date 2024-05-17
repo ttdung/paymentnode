@@ -48,7 +48,8 @@ func NewRpcClient(cfg *config.Config) *client.Context {
 	rpcClient = rpcClient.
 		WithClient(rpcHttp).
 		//WithNodeURI(cfg.Endpoint).
-		WithCodec(encodingConfig.Marshaler).
+		//WithCodec(encodingConfig.Marshaler).
+		WithCodec(encodingConfig.Codec).
 		WithInterfaceRegistry(encodingConfig.InterfaceRegistry).
 		WithTxConfig(encodingConfig.TxConfig).
 		WithLegacyAmino(encodingConfig.Amino).
@@ -63,20 +64,20 @@ func NewRpcClient(cfg *config.Config) *client.Context {
 func BuildCommitmentMsgPartA(com *common.Commitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
 
 	msg := channelTypes.MsgCommitment{
-		Creator: chann.Multisig_Addr,
-		From:    chann.Multisig_Addr,
-		Cointocreator: &sdk.Coin{
+		Creator:      chann.Multisig_Addr,
+		MultisigAddr: chann.Multisig_Addr,
+		Cointocreator: []*sdk.Coin{{
 			Denom:  chann.Denom,
 			Amount: sdk.NewInt(int64(com.BalanceA)),
-		},
-		ToTimelock:  chann.PartB, //peer node
-		Blockheight: com.Timelock,
-		ToHashlock:  chann.PartA,
+		}},
+		Partneraddr: chann.PartB, //peer node
+		Numblock:    com.Timelock,
+		Creatoraddr: chann.PartA,
 		Hashcode:    com.HashcodeB,
-		Coinhtlc: &sdk.Coin{
+		Cointohtlc: []*sdk.Coin{{
 			Denom:  chann.Denom,
 			Amount: sdk.NewInt(int64(com.BalanceB)),
-		},
+		}},
 		Channelid: chann.Index,
 	}
 
@@ -92,20 +93,20 @@ func BuildCommitmentMsgPartA(com *common.Commitment_st, chann *common.Channel_st
 func BuildCommitmentMsgPartB(com *common.Commitment_st, chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
 
 	msg := channelTypes.MsgCommitment{
-		Creator: chann.Multisig_Addr,
-		From:    chann.Multisig_Addr,
-		Cointocreator: &sdk.Coin{
+		Creator:      chann.Multisig_Addr,
+		MultisigAddr: chann.Multisig_Addr,
+		Cointocreator: []*sdk.Coin{{
 			Denom:  chann.Denom,
 			Amount: sdk.NewInt(int64(com.BalanceB)),
-		},
-		ToTimelock:  chann.PartA, //peer node
-		Blockheight: com.Timelock,
-		ToHashlock:  chann.PartB,
+		}},
+		Partneraddr: chann.PartA, //peer node
+		Numblock:    com.Timelock,
+		Creatoraddr: chann.PartB,
 		Hashcode:    com.HashcodeA,
-		Coinhtlc: &sdk.Coin{
+		Cointohtlc: []*sdk.Coin{{
 			Denom:  chann.Denom,
 			Amount: sdk.NewInt(int64(com.BalanceA)),
-		},
+		}},
 		Channelid: chann.Index,
 	}
 
@@ -151,18 +152,18 @@ func BuildAndSignCommitmentMsgPartB(rpcClient *client.Context, account *account.
 }
 
 func BuildOpenChannelMsg(chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {
-	msg := channelTypes.MsgOpenChannel{
+	msg := channelTypes.MsgOpenchannel{
 		Creator: chann.Multisig_Addr,
 		PartA:   chann.PartA,
 		PartB:   chann.PartB,
-		CoinA: &sdk.Coin{
+		CoinA: []*sdk.Coin{{
 			Denom:  chann.Denom,
 			Amount: sdk.NewInt(int64(chann.Amount_partA)),
-		},
-		CoinB: &sdk.Coin{
+		}},
+		CoinB: []*sdk.Coin{{
 			Denom:  chann.Denom,
 			Amount: sdk.NewInt(int64(chann.Amount_partB)),
-		},
+		}},
 		MultisigAddr: chann.Multisig_Addr,
 	}
 
