@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"github.com/cosmos/cosmos-sdk/client"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/dungtt-astra/astra-go-sdk/account"
-	channelTypes "github.com/dungtt-astra/astra/v3/x/channel/types"
-	"github.com/dungtt-astra/paymentnode/config"
-	"github.com/dungtt-astra/paymentnode/pkg/common"
-	"github.com/dungtt-astra/paymentnode/pkg/user"
-	"github.com/dungtt-astra/paymentnode/pkg/utils"
-	node "github.com/dungtt-astra/paymentnode/proto"
+	"github.com/ttdung/astra-go-sdk/account"
+	channelTypes "github.com/ttdung/channel_v0.46/x/channel/types"
+	"github.com/ttdung/paymentnode/config"
+	"github.com/ttdung/paymentnode/pkg/common"
+	"github.com/ttdung/paymentnode/pkg/user"
+	"github.com/ttdung/paymentnode/pkg/utils"
+	node "github.com/ttdung/paymentnode/proto"
 	"google.golang.org/grpc"
 	//"google.golang.org/grpc"
 	"io"
@@ -70,27 +70,29 @@ func (n *Node) Start(args []string) {
 	// create listener
 	tcp := "tcp"
 	address := ":50005"
-	//tokenSymbol := "aastra"
-	var mmemonic = "casual tone vapor total keen lawn pond abandon fresh alley cattle mystery season invest safe share scorpion swallow gentle seven shrimp divert solid voyage"
-	var cfg = config.Config{
-		ChainId:       "astra_11115-1",
-		Endpoint:      "http://localhost:26657",
-		CoinType:      common.COINTYPE, //ethermintTypes.Bip44CoinType,
-		PrefixAddress: "astra",
-		TokenSymbol:   []string{common.DENOM},
-		NodeAddr:      ":50005",
-		Tcp:           "tcp",
-	}
 
-	//var cfg = &config.Config{
-	//	ChainId:       "testchain",
+	var mmemonic = "rich cost ordinary claim citizen battle expose popular glad enlist hint knock load across blade portion chaos type slush online memory hunt drama clarify"
+
+	//tokenSymbol := "aastra"
+	//var cfg = config.Config{
+	//	ChainId:       "astra_11115-1",
 	//	Endpoint:      "http://localhost:26657",
-	//	CoinType:      common.COINTYPE,
-	//	PrefixAddress: "cosmos",
-	//	TokenSymbol:   common.DENOM,
+	//	CoinType:      common.COINTYPE, //ethermintTypes.Bip44CoinType,
+	//	PrefixAddress: "astra",
+	//	TokenSymbol:   []string{common.DENOM},
 	//	NodeAddr:      ":50005",
 	//	Tcp:           "tcp",
 	//}
+
+	var cfg = &config.Config{
+		ChainId:       "channel_v0.46",
+		Endpoint:      "http://localhost:26657",
+		CoinType:      common.COINTYPE,
+		PrefixAddress: "cosmos",
+		TokenSymbol:   []string{"stake"},
+		NodeAddr:      ":50005",
+		Tcp:           "tcp",
+	}
 
 	if len(args) >= 2 {
 		n.owner.Passcode = args[2]
@@ -110,7 +112,7 @@ func (n *Node) Start(args []string) {
 	// create grpc server
 	s := grpc.NewServer()
 	node.RegisterNodeServer(s, &Node{
-		rpcClient: utils.NewRpcClient(&cfg),
+		rpcClient: utils.NewRpcClient(cfg),
 		owner:     owner,
 		address:   address,
 	})
@@ -281,6 +283,8 @@ func (n *Node) parseToChannelSt(req *node.MsgReqOpenChannel) (*common.Channel_st
 
 func (n *Node) initNewMultisigAddr(chann *common.Channel_st) error {
 
+	fmt.Println("Multisig_Addr:", chann.Multisig_Addr)
+	fmt.Println("n.owner.Account mnemonic:", n.owner.Account.Mnemonic())
 	res, err := utils.TransferTokenWithPrivateKey(n.owner.Account.PrivateKeyToString(),
 		*n.rpcClient,
 		chann.Denom[0],

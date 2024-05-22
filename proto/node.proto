@@ -1,6 +1,6 @@
 syntax = "proto3";
 package node;
-option go_package = "github.com/dungtt-astra/paymentchannel";
+option go_package = "github.com/ttdung/paymentchannel";
 
 import "google/protobuf/struct.proto";
 

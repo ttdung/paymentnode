@@ -3,7 +3,7 @@ package main
 //
 //
 import (
-	node "github.com/dungtt-astra/paymentnode/node"
+	node "github.com/ttdung/paymentnode/node"
 	"log"
 	"os"
 )

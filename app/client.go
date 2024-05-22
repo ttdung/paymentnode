@@ -9,11 +9,11 @@ import (
 	"flag"
 	"fmt"
 	"github.com/cosmos/cosmos-sdk/client"
-	"github.com/dungtt-astra/astra-go-sdk/account"
-	"github.com/dungtt-astra/paymentnode/config"
-	"github.com/dungtt-astra/paymentnode/pkg/common"
-	"github.com/dungtt-astra/paymentnode/pkg/utils"
-	node "github.com/dungtt-astra/paymentnode/proto"
+	"github.com/ttdung/astra-go-sdk/account"
+	"github.com/ttdung/paymentnode/config"
+	"github.com/ttdung/paymentnode/pkg/common"
+	"github.com/ttdung/paymentnode/pkg/utils"
+	node "github.com/ttdung/paymentnode/proto"
 	"google.golang.org/grpc"
 	//"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -40,12 +40,10 @@ type Balance struct {
 var balance_map = make(map[string]*Balance)
 
 var mmemonic = []string{
-	/* a11 */ "cigar oak another become velvet open puppy tone park nose arch notice winner message ribbon exotic fall squeeze conduct metal trap female history sort",
-	/* a8 */ "observe degree glove awful radio radar fiscal deer quick shoe pond oval title life ranch index vivid length economy unknown unusual tenant wall crumble",
-	/* a9 */ "relief expect tomato plate spice program treat insect legal thing object admit enjoy sunset model orient what creek stereo ensure bicycle provide artwork zoo",
+	"plastic teach expect wolf kit misery quarter episode wide begin season flip medal ginger item vague repeat super deputy dad shoe bright dry core",
 }
 
-var partB = "astra12gvhhhvhd9emrkwlj3q48yzz9adgz72ykpejrj" // a12
+var partB = "cosmos16ydvmd8a85y5xrc2y3pzafz8wm9v6lnewukekn" // a12
 
 var waitc = make(chan struct{})
 
@@ -68,21 +66,21 @@ type MachineClient struct {
 	timelock  uint64
 }
 
-var cfg = &config.Config{
-	ChainId:       "astra_11115-1",
-	Endpoint:      "http://localhost:26657",
-	CoinType:      common.COINTYPE, //ethermintTypes.Bip44CoinType,
-	PrefixAddress: "astra",
-	TokenSymbol:   []string{common.DENOM},
-}
-
 //var cfg = &config.Config{
-//	ChainId:       "testchain",
+//	ChainId:       "astra_11115-1",
 //	Endpoint:      "http://localhost:26657",
-//	CoinType:      common.COINTYPE,
-//	PrefixAddress: "cosmos",
-//	TokenSymbol:   common.DENOM,
+//	CoinType:      common.COINTYPE, //ethermintTypes.Bip44CoinType,
+//	PrefixAddress: "astra",
+//	TokenSymbol:   []string{common.DENOM},
 //}
+
+var cfg = &config.Config{
+	ChainId:       "channel_v0.46",
+	Endpoint:      "http://localhost:26657",
+	CoinType:      common.COINTYPE,
+	PrefixAddress: "cosmos",
+	TokenSymbol:   []string{"stake"},
+}
 
 func NewMachineClient(stream node.Node_OpenStreamClient,
 	client node.NodeClient,
@@ -189,7 +187,7 @@ func (c *MachineClient) buildChannelInfo(req *node.MsgReqOpenChannel, res *node.
 
 	log.Println("Peer pubkey:", peerPubkey.AccAddress())
 	log.Println("Client pubkey:", c.account.PublicKey().Address())
-	multisigAddr, multiSigPubkey, err := account.NewAccount(common.COINTYPE).CreateMulSignAccountFromTwoAccount(c.account.PublicKey(), peerPubkey.PublicKey(), 2)
+	multisigAddr, multiSigPubkey, err := account.NewAccount(common.COINTYPE).CreateMulSignAccountFromTwoAccount(peerPubkey.PublicKey(), c.account.PublicKey(), 2)
 	if err != nil {
 		return common.Channel_st{}, err
 	}
@@ -218,7 +216,7 @@ func (c *MachineClient) buildChannelInfo(req *node.MsgReqOpenChannel, res *node.
 func (c *MachineClient) buildCommitmentInfo(req *node.MsgReqOpenChannel, res *node.MsgResOpenChannel, secret string) *common.Commitment_st {
 	peerPubkey, err := account.NewPKAccount(res.Pubkey)
 
-	multisigAddr, _, err := account.NewAccount(common.COINTYPE).CreateMulSignAccountFromTwoAccount(c.account.PublicKey(), peerPubkey.PublicKey(), 2)
+	multisigAddr, _, err := account.NewAccount(common.COINTYPE).CreateMulSignAccountFromTwoAccount(peerPubkey.PublicKey(), c.account.PublicKey(), 2)
 	if err != nil {
 		return nil
 	}

@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	cryptoTypes "github.com/cosmos/cosmos-sdk/crypto/types"
-	"github.com/dungtt-astra/astra-go-sdk/account"
-	"github.com/dungtt-astra/paymentnode/pkg/common"
+	"github.com/ttdung/astra-go-sdk/account"
+	"github.com/ttdung/paymentnode/pkg/common"
 	"time"
 )
 

@@ -8,16 +8,16 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	signingTypes "github.com/cosmos/cosmos-sdk/types/tx/signing"
 	authTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	"github.com/dungtt-astra/astra-go-sdk/account"
-	"github.com/dungtt-astra/astra-go-sdk/bank"
-	"github.com/dungtt-astra/astra-go-sdk/channel"
-	sdkcommon "github.com/dungtt-astra/astra-go-sdk/common"
-	"github.com/dungtt-astra/astra/v3/app"
-	channelTypes "github.com/dungtt-astra/astra/v3/x/channel/types"
-	"github.com/dungtt-astra/paymentnode/config"
-	"github.com/dungtt-astra/paymentnode/pkg/common"
-	"github.com/evmos/evmos/v12/encoding"
+	"github.com/evmos/ethermint/encoding"
 	"github.com/pkg/errors"
+	"github.com/ttdung/astra-go-sdk/account"
+	"github.com/ttdung/astra-go-sdk/bank"
+	"github.com/ttdung/astra-go-sdk/channel"
+	sdkcommon "github.com/ttdung/astra-go-sdk/common"
+	"github.com/ttdung/channel_v0.46/app"
+	channelTypes "github.com/ttdung/channel_v0.46/x/channel/types"
+	"github.com/ttdung/paymentnode/config"
+	"github.com/ttdung/paymentnode/pkg/common"
 	"log"
 	"math/big"
 	"strings"
@@ -326,6 +326,9 @@ func BuildAndSignCommitmentMsgPartB(rpcClient *client.Context, account *account.
 	log.Println("BuildAndSignCommitmentMsgPartB : ")
 	log.Println("BuildAndSignCommitmentMsgPartB : openChannelRequest", openChannelRequest)
 	//strSig, err := channel.NewChannel(*rpcClient).SignMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
+	//if err != nil {
+	//	return openChannelRequest, strSig, err
+	//}
 
 	for true {
 		strSig, err := channel.NewChannel(*rpcClient).SignCommitmentMultisigMsg(openChannelRequest, account, chann.Multisig_Pubkey)
@@ -341,10 +344,11 @@ func BuildAndSignCommitmentMsgPartB(rpcClient *client.Context, account *account.
 			return openChannelRequest, strSig, nil
 		}
 	}
+
 	//log.Println("Commitment B: ", openChannelRequest)
 	//log.Println("Sig of commitment: ", strSig)
 
-	return openChannelRequest, "", errors.New("unknown")
+	return openChannelRequest, "", errors.New("Unknown...")
 }
 
 func BuildOpenChannelMsg(chann *common.Channel_st, gaslimit uint64, gasprice string) channel.SignMsgRequest {

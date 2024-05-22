@@ -37,11 +37,11 @@ type Commitment_st struct {
 }
 
 const (
-	//COINTYPE = uint32(118) // test type for this project
-	COINTYPE = uint32(60) // test type for this project
+	COINTYPE = uint32(118) // cosmos native token
+	//uint32(60) ethereum token
 	TIMELOCK = uint32(1)
-	DENOM    = "aastra"
-	GASPRICE = "0aastra"
+	DENOM    = "stake"
+	GASPRICE = "0stake"
 )
 
 //const COINTYPE = ethermintTypes.Bip44CoinType
